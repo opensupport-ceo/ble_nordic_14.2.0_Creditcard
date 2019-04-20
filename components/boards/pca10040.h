@@ -44,6 +44,7 @@
 extern "C" {
 #endif
 
+/* Our custom feature, applied. */
 #include "custom_feature.h"
 #include "nrf_gpio.h"
 
@@ -96,6 +97,7 @@ extern "C" {
 #define BSP_BUTTON_3   BUTTON_4
 
 #if defined(BOARD_R7)
+/* this isn't the debug log port using UART/UARTE */
 #define RX_PIN_NUMBER  25
 #define TX_PIN_NUMBER  26
 #define CTS_PIN_NUMBER 7
@@ -186,12 +188,19 @@ extern "C" {
 #define ARDUINO_A4_PIN              30    // Analog channel 4
 #define ARDUINO_A5_PIN              31    // Analog channel 5
 
+#if defined(BOARD_R7)
+// Low frequency clock source to be used by the SoftDevice
+#define NRF_CLOCK_LFCLKSRC      {.source       = NRF_CLOCK_LF_SRC_RC,      \
+                                 .rc_ctiv      = 16,                          \
+                                 .rc_temp_ctiv = 2,                          \
+                                 .accuracy     = NRF_CLOCK_LF_ACCURACY_500_PPM}
+#else
 // Low frequency clock source to be used by the SoftDevice
 #define NRF_CLOCK_LFCLKSRC      {.source       = NRF_CLOCK_LF_SRC_XTAL,      \
                                  .rc_ctiv      = 0,                          \
                                  .rc_temp_ctiv = 0,                          \
                                  .accuracy     = NRF_CLOCK_LF_ACCURACY_20_PPM}
-
+#endif
 #ifdef __cplusplus
 }
 #endif

@@ -42,11 +42,15 @@
 
 #ifndef SDK_CONFIG_H
 #define SDK_CONFIG_H
+#if (1)//We don't use  Configuration Wizard.
 #include "custom_feature.h"
+#else
 // <<< Use Configuration Wizard in Context Menu >>>\n
 #ifdef USE_APP_CONFIG
 #include "app_config.h"
 #endif
+#endif
+
 // <h> Board Support 
 
 //==========================================================
@@ -3078,7 +3082,6 @@
 
 // </e>
 
-#if defined(USE_UART_LOG)
 // <e> NRF_LOG_BACKEND_UART_ENABLED - nrf_log_backend_uart - Log UART backend
 //==========================================================
 #ifndef NRF_LOG_BACKEND_UART_ENABLED
@@ -3123,7 +3126,6 @@
 #endif
 
 // </e>
-#endif
 
 // <h> nrf_log - Logger
 

@@ -37,18 +37,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-/** @file
+/**
+ * Copyright (c) 2017 - 2019, APMATE
  *
- * @defgroup ble_sdk_uart_over_ble_main main.c
- * @{
- * @ingroup  ble_sdk_app_nus_eval
- * @brief    UART over BLE application main file.
+ * All rights reserved.
  *
- * This file contains the source code for a sample application that uses the Nordic UART service.
- * This application uses the @ref srvlib_conn_params module.
+ * Author: Jaehong Park, jaehong1972@gmail.com
  */
-
-
 
 #include <stdint.h>
 #include <string.h>
@@ -94,9 +89,12 @@
 
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
-//volatile uint8_t state = 1;
 
-static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1); //soft_device don't use #0 timer.
+/* Soft_device use #0 timer for another purpose,
+** So we have to use another timer block exept for #0 timer. 
+*/
+static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
+
 static nrf_saadc_value_t adc_buf[2][SAMPLES_IN_BUFFER];
 static uint8_t 		uart_send_data[20];
 static nrf_ppi_channel_t     m_ppi_channel;
@@ -239,8 +237,7 @@ static int32_t read_temperature(void)
     return temperature;
   }
 }
-#endif
-
+#else
 static int32_t read_temperature_complete(void)
 {
   int32_t temperature;
@@ -278,6 +275,7 @@ static bool read_temperature_start(void)
   }
   return temp_read_done;
 }
+#endif
 
 #if defined(USE_REGISTER)
 static int32_t read_temperature(void)
@@ -304,7 +302,7 @@ static int32_t read_temperature(void)
   NRF_LOG_INFO("Actual temperature: %d", (int)temp);
   nrf_delay_ms(500);
 }
-#endif//#if (0)
+#endif//#if defined(USE_REGISTER)
 #endif//#if defined(TEMP_ONBOARD_ADC)
 
 #if defined(BATT_ADC)
@@ -334,7 +332,7 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
         tmp_batt_adc = tmp_adc_sum/SAMPLES_IN_BUFFER;
         NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
         
-#if 0
+#if (0) // Later, shall use this below logic.
         if(batt_adc <= 0x00){//0x00을 바꾸면 됩니다. 
             nrf_gpio_pin_clear(APMATE_BAT_V);
         }
@@ -418,13 +416,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
         switch(p_evt->params.rx_data.p_data[0]){
-          case 0xDD: //LED 시작 .
+          case 0xDD: //LED start.
             led_alert_start();
             break;
-          case 0xBB: //LED 멈춤 .
+          case 0xBB: //LED stop.
             alert_cnt = 100;
             break;
-          case 0xAA: // OTA로 전환.
+          case 0xAA: //OTA start.
             bootloader_start();
             break;
           default:
@@ -648,20 +646,21 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             APP_ERROR_CHECK(err_code);
             break;
 
-//        case BLE_GATTC_EVT_TIMEOUT:
-//            // Disconnect on GATT Client timeout event.
-//            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
-//                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-//            APP_ERROR_CHECK(err_code);
-//            break;
-//
-//        case BLE_GATTS_EVT_TIMEOUT:
-//            // Disconnect on GATT Server timeout event.
-//            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
-//                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-//            APP_ERROR_CHECK(err_code);
-//            break;
+#if (0) //Later, should be verified.
+        case BLE_GATTC_EVT_TIMEOUT:
+            // Disconnect on GATT Client timeout event.
+            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
+                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            APP_ERROR_CHECK(err_code);
+            break;
 
+        case BLE_GATTS_EVT_TIMEOUT:
+            // Disconnect on GATT Server timeout event.
+            err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
+                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            APP_ERROR_CHECK(err_code);
+            break;
+#endif
         case BLE_EVT_USER_MEM_REQUEST:
             err_code = sd_ble_user_mem_reply(p_ble_evt->evt.gattc_evt.conn_handle, NULL);
             APP_ERROR_CHECK(err_code);
@@ -1398,7 +1397,7 @@ static void uart_init(void)
     APP_UART_FIFO_INIT(&comm_params,
                        UART_RX_BUF_SIZE,
                        UART_TX_BUF_SIZE,
-                       NULL, //uart_event_handle,
+                       uart_event_handle,
                        APP_IRQ_PRIORITY_LOWEST,
                        err_code);
     APP_ERROR_CHECK(err_code);
@@ -1470,7 +1469,7 @@ int main(void)
     APP_ERROR_CHECK(err_code);
 
     // Enter main loop.
-    for (;;)
+    while(true)
     {
         UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
         power_manage();
