@@ -332,9 +332,10 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
         tmp_batt_adc = tmp_adc_sum/SAMPLES_IN_BUFFER;
         NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
         
-#if (0) // Later, shall use this below logic.
-        if(batt_adc <= 0x00){//0x00을 바꾸면 됩니다. 
-            nrf_gpio_pin_clear(APMATE_BAT_V);
+#ifdef BATT_POWEROFF
+        if(tmp_batt_adc <= 0x357){ // When under 2.5V.
+            //nrf_gpio_pin_clear(APMATE_BAT_V);
+            nrf_gpio_pin_clear(APMATE_P_CTL);
         }
 #endif
 

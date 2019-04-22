@@ -56,6 +56,9 @@
 /* Currently, don't use old mechanism */
 //#define OLD_BATT_ADC
 #undef OLD_BATT_ADC
+
+/* Power off on under 2.5V */
+#define BATT_POWEROFF
 #endif
 
 #if defined(BATT_ADC)
