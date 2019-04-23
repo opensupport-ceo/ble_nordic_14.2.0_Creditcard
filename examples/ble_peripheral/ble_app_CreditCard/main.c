@@ -150,6 +150,9 @@ APP_TIMER_DEF(m_app_btn_timer_id);
 #if defined(OLD_BATT_ADC)
 APP_TIMER_DEF(m_battery_timer_id);
 #endif
+#if defined(BATT_POWEROFF)
+APP_TIMER_DEF(m_batt_adc_timer_id);
+#endif
 #if defined(TEMP_ONBOARD_ADC)
 APP_TIMER_DEF(m_temperature_timer_id);
 #endif
@@ -171,10 +174,16 @@ APP_TIMER_DEF(m_temperature_timer_id);
 #if defined(OLD_BATT_ADC)
 #define BATTERY_INTERVAL                                          APP_TIMER_TICKS(60000)
 #endif
+#if defined(BATT_POWEROFF)
+#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(60000)
+#endif
 #if defined(TEMP_ONBOARD_ADC)
 #define TEMPERATURE_INTERVAL                                      APP_TIMER_TICKS(10000)
 #endif
 
+#if defined(BATT_POWEROFF)
+static bool check_batt_adc = false;
+#endif
 static uint32_t alert_cnt;
 static bool alert_on = false;
 static bool alert_btn_on = false;
@@ -311,7 +320,7 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
     
-	nrf_saadc_value_t tmp_batt_adc = 0;
+      	nrf_saadc_value_t tmp_batt_adc = 0;
         nrf_saadc_value_t tmp_adc_sum = 0;
         uint32_t          err_code;
         
@@ -330,15 +339,21 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 
         //batt_adc = p_event->data.done.p_buffer[0];
         tmp_batt_adc = tmp_adc_sum/SAMPLES_IN_BUFFER;
-        NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
-        
-#ifdef BATT_POWEROFF
-        if(tmp_batt_adc <= 0x357){ // When under 2.5V.
-            //nrf_gpio_pin_clear(APMATE_BAT_V);
-            nrf_gpio_pin_clear(APMATE_P_CTL);
+#if defined(BATT_POWEROFF)
+        if(check_batt_adc){
+          NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
         }
 #endif
 
+#ifdef BATT_POWEROFF
+        if(check_batt_adc){
+          if(tmp_batt_adc <= 0x357){ // When under 2.5V.
+              //nrf_gpio_pin_clear(APMATE_BAT_V);
+              nrf_gpio_pin_clear(APMATE_P_CTL);
+          }
+        }
+#endif
+      
     }
 }
 #endif
@@ -836,6 +851,10 @@ static void btn_power_on_timeout_handler(void * p_context)
     if(nrf_gpio_pin_read(APMATE_BTN_1)==0){
       nrf_gpio_pin_set(APMATE_P_CTL); //Power on board.
       NRF_LOG_INFO("Power on already setted!");
+#if defined(BATT_POWEROFF)
+      err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
+      APP_ERROR_CHECK(err_code);
+#endif
     }else{
       power_off();
     }
@@ -895,6 +914,14 @@ static void btn_power_on_timeout_handler(void * p_context)
     }
 }
 #endif//#if defined(BTN_PWR_ON)
+
+#if defined(BATT_POWEROFF)
+static void batt_power_off_timeout_handler(void * p_context)
+{
+  check_batt_adc = true;
+  NRF_LOG_INFO("Batt ADC read-check starts...");
+}
+#endif
 
 #if defined(USE_NEWLED)
 static void led_idle_timer_handler(void * p_context)
@@ -1022,6 +1049,13 @@ void timer_init(void)
                             APP_TIMER_MODE_SINGLE_SHOT,
                             btn_power_on_timeout_handler);
     APP_ERROR_CHECK(err_code);
+
+#if defined(BATT_POWEROFF)
+    err_code = app_timer_create(&m_batt_adc_timer_id,
+                            APP_TIMER_MODE_SINGLE_SHOT,
+                            batt_power_off_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+#endif
 
 #if defined(APP_BTN)
     err_code = app_timer_create(&m_app_btn_timer_id,
