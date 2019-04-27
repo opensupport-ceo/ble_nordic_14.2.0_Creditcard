@@ -59,6 +59,7 @@
 
 /* Power off on under 2.5V */
 #define BATT_POWEROFF
+#undef BATT_POWEROFF
 #endif
 
 #if defined(BATT_ADC)

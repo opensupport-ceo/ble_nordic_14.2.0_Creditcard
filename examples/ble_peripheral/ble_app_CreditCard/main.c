@@ -343,6 +343,8 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
         if(check_batt_adc){
           NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
         }
+#else
+        NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
 #endif
 
 #ifdef BATT_POWEROFF
