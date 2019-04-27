@@ -324,7 +324,7 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
         nrf_saadc_value_t tmp_adc_sum = 0;
         uint32_t          err_code;
         
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, 1);
+        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
         APP_ERROR_CHECK(err_code);
 		
         int i;
