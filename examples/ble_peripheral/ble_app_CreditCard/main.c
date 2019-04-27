@@ -89,6 +89,9 @@
 
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
+#if defined(BATT_POWEROFF)
+#define CUTOFF_VAL  0x357
+#endif
 
 /* Soft_device use #0 timer for another purpose,
 ** So we have to use another timer block exept for #0 timer. 
@@ -349,7 +352,7 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 
 #ifdef BATT_POWEROFF
         if(check_batt_adc){
-          if(tmp_batt_adc <= 0x357){ // When under 2.5V.
+          if(tmp_batt_adc <= CUTOFF_VAL){ // When under 2.5V.
               //nrf_gpio_pin_clear(APMATE_BAT_V);
               nrf_gpio_pin_clear(APMATE_P_CTL);
           }
