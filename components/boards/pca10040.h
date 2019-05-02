@@ -48,7 +48,7 @@ extern "C" {
 #include "custom_feature.h"
 #include "nrf_gpio.h"
 
-#if defined(BOARD_R7)
+#if defined(BOARD_R7) || defined(BOARD_R11)
 #define LEDS_NUMBER    0
 #else
 // LEDs definitions for PCA10040
@@ -73,7 +73,7 @@ extern "C" {
 #define BSP_LED_2      LED_3
 #define BSP_LED_3      LED_4
 
-#if defined(BOARD_R7)
+#if defined(BOARD_R7) || defined(BOARD_R11)
 #define BUTTONS_NUMBER 0
 #else
 #define BUTTONS_NUMBER 4
@@ -96,7 +96,7 @@ extern "C" {
 #define BSP_BUTTON_2   BUTTON_3
 #define BSP_BUTTON_3   BUTTON_4
 
-#if defined(BOARD_R7)
+#if defined(BOARD_R7)||defined(BOARD_R11)
 /* this isn't the debug log port using UART/UARTE */
 #define RX_PIN_NUMBER  25
 #define TX_PIN_NUMBER  26
@@ -188,7 +188,7 @@ extern "C" {
 #define ARDUINO_A4_PIN              30    // Analog channel 4
 #define ARDUINO_A5_PIN              31    // Analog channel 5
 
-#if defined(BOARD_R7)
+#if defined(BOARD_R7) || defined(BOARD_R11)
 // Low frequency clock source to be used by the SoftDevice
 #define NRF_CLOCK_LFCLKSRC      {.source       = NRF_CLOCK_LF_SRC_RC,      \
                                  .rc_ctiv      = 16,                          \
@@ -201,6 +201,37 @@ extern "C" {
                                  .rc_temp_ctiv = 0,                          \
                                  .accuracy     = NRF_CLOCK_LF_ACCURACY_20_PPM}
 #endif
+
+#if defined(BOARD_R7)
+#define APMATE_LED_1 0
+#define APMATE_LED_2 1
+#define APMATE_BTN_1 5
+#define APMATE_P_CTL 15
+#define APMATE_BAT_V 8
+#define APMATE_OUT_CHECK 18
+#define APMATE_BAT_VC 30 //AIN6
+#define APMATE_V_TEMP 29 //AIN5
+
+#elif defined(BOARD_R11)
+#define APMATE_LED_1 0
+#define APMATE_LED_2 8
+#define APMATE_LED_3 6
+#define APMATE_BTN_1 18
+#define APMATE_POWER 15
+#define APMATE_P_CTL APMATE_POWER
+#define APMATE_BAT_ON 16
+#define APMATE_BAT_V APMATE_BAT_ON
+#define APMATE_ID_CONTROL 2
+#define APMATE_BAT_VC 5 //AIN3
+
+#else
+#define APMATE_LED_1 17
+#define APMATE_LED_2 18
+#define APMATE_BTN_1 13
+#define APMATE_BAT_V 19
+#define APMATE_OUT_CHECK 20
+#endif
+
 #ifdef __cplusplus
 }
 #endif

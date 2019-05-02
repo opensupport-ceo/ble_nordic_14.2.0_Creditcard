@@ -87,10 +87,16 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
 
+#include "peer_manager.h"
+#include "fds.h"
+#include "bsp.h" //bonds
+
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
 #if defined(BATT_POWEROFF)
-#define CUTOFF_VAL  0x357
+#define VOLT_MAX    0x32B //4.2V
+//#define CUTOFF_VAL  0x27B //3.3V
+#define CUTOFF_VAL  0x0 //temp
 #endif
 
 /* Soft_device use #0 timer for another purpose,
@@ -121,8 +127,10 @@ static bool temp_read_done = false;
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
 
-#define APP_ADV_INTERVAL               MSEC_TO_UNITS(1000, UNIT_0_625_MS)                                           /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS      0                                         /**< The advertising timeout (in units of seconds). */
+#define APP_ADV_INTERVAL               MSEC_TO_UNITS(1000, UNIT_0_625_MS)           /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
+#define APP_ADV_TIMEOUT_IN_SECONDS      0                                           /**< The advertising timeout (in units of seconds). */
+
+#define SECURITY_REQUEST_DELAY          APP_TIMER_TICKS(400)                        /**< Delay after connection until Security Request is sent, if necessary (ticks). */
 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
 #define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
@@ -131,6 +139,27 @@ static bool temp_read_done = false;
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000)                      /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
+
+#define SEC_PARAM_BOND                  1                                           /**< Perform bonding. */
+#if defined(STATIC_KEY)
+#define SEC_PARAM_MITM                  1                                           /**< Man In The Middle protection required (applicable when display module is detected). */
+#else
+#define SEC_PARAM_MITM                  1                                           /**< Man In The Middle protection required (applicable when display module is detected). */
+#endif
+#define SEC_PARAM_LESC                  0                                           /**< LE Secure Connections not enabled. */
+#define SEC_PARAM_KEYPRESS              0                                           /**< Keypress notifications not enabled. */
+#if defined(STATIC_KEY)
+#define SEC_PARAM_IO_CAPABILITIES       BLE_GAP_IO_CAPS_DISPLAY_ONLY                /**< Display I/O capabilities. */
+#else
+#define SEC_PARAM_IO_CAPABILITIES       BLE_GAP_IO_CAPS_DISPLAY_ONLY 
+#endif
+#define SEC_PARAM_OOB                   0                                           /**< Out Of Band data not available. */
+#define SEC_PARAM_MIN_KEY_SIZE          7                                           /**< Minimum encryption key size. */
+#define SEC_PARAM_MAX_KEY_SIZE          16                                          /**< Maximum encryption key size. */
+
+#define PASSKEY_TXT                     "Passkey:"                                  /**< Message to be displayed together with the pass-key. */
+#define PASSKEY_TXT_LENGTH              8                                           /**< Length of message to be displayed together with the pass-key. */
+#define PASSKEY_LENGTH                  6                                           /**< Length of pass-key received by the stack for display. */
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
@@ -159,18 +188,28 @@ APP_TIMER_DEF(m_batt_adc_timer_id);
 #if defined(TEMP_ONBOARD_ADC)
 APP_TIMER_DEF(m_temperature_timer_id);
 #endif
+#if defined(WAKEUP_NOPAIRED)
+APP_TIMER_DEF(m_wakeup_nopaired_timer_id);
+#endif
+APP_TIMER_DEF(m_sec_req_timer_id);                                                  /**< Security Request timer. */
 
 #define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(50)                     /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
 
 
 #if defined(BTN_PWR_ON)
 #define BTN1_INTERVAL1    APP_TIMER_TICKS(1000)
-#define BTN1_INTERVAL2    APP_TIMER_TICKS(100)
+#define BTN1_INTERVAL2    APP_TIMER_TICKS(3000) //3sec time.
 #else
 #define BTN1_INTERVAL                                             APP_TIMER_TICKS(100)
 #endif
+#if defined(USE_CARD_LED)
+#define LED_INTERVAL0                                             APP_TIMER_TICKS(100)
+#define LED_INT_500MS     APP_TIMER_TICKS(500)
+#define LED_INT_1SEC      APP_TIMER_TICKS(1000)
+#else
 #define LED_INTERVAL1                                             APP_TIMER_TICKS(100)
 #define LED_ALERT_INTERVAL                                            APP_TIMER_TICKS(100)
+#endif
 #if defined(USE_NEWLED)
 #define LED_IDLE_INTERVAL                                             APP_TIMER_TICKS(1000)
 #endif
@@ -183,22 +222,43 @@ APP_TIMER_DEF(m_temperature_timer_id);
 #if defined(TEMP_ONBOARD_ADC)
 #define TEMPERATURE_INTERVAL                                      APP_TIMER_TICKS(10000)
 #endif
+#if defined(WAKEUP_NOPAIRED)
+#define WAKEUP_NOPAIRED_INTERVAL                                      APP_TIMER_TICKS(60000*10)
+#endif
 
+#if defined(WAKEUP_NOPAIRED)
+static bool paired_once = false;
+#endif
 #if defined(BATT_POWEROFF)
 static bool check_batt_adc = false;
 #endif
+
+#if defined(BTN_LED1)
+static uint32_t pressed_time, released_time, pressed_duration = 0;
+static uint8_t pressed_cnt, click_cnt = 0;
+#endif
+
+#ifndef USE_CARD_LED
 static uint32_t alert_cnt;
 static bool alert_on = false;
 static bool alert_btn_on = false;
 static bool btn_release = false;
 static bool m_led_timer_f = false;
+#endif
 
+static pm_peer_id_t m_peer_to_be_deleted = PM_PEER_ID_INVALID;
 static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[]          =                                          /**< Universally unique service identifier. */
 {
     {BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}
+#if (0)
+    ,{BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
+#endif
 };
+
+static void advertising_start(bool erase_bonds);
 
 /**@brief Function for assert macro callback.
  *
@@ -230,6 +290,67 @@ uint8_t hex_to_ascii(bool up_down,uint8_t hex_data)
     return (55+temp_hex_data);
   }
 }
+
+/**@brief Function for putting the chip into sleep mode.
+ *
+ * @note This function will not return.
+ */
+static void sleep_mode_enter(void)
+{
+    uint32_t err_code;
+
+#if defined(OLD_SENARIO)
+    nrf_gpio_cfg_sense_input(APMATE_BTN_1,NRF_GPIO_PIN_PULLUP,NRF_GPIO_PIN_SENSE_LOW);
+#endif
+
+#if (0)
+    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    APP_ERROR_CHECK(err_code);
+
+    // Prepare wakeup buttons.
+    err_code = bsp_btn_ble_sleep_mode_prepare();
+    APP_ERROR_CHECK(err_code);
+#endif
+
+    // Go to system-off mode (this function will not return; wakeup will cause a reset).
+    err_code= sd_power_system_off();
+    APP_ERROR_CHECK(err_code);
+}
+
+#if defined(BTN_PWR_ON)
+static void power_off_instant(void)
+{
+  NRF_LOG_INFO("System down...");
+  nrf_gpio_pin_clear(APMATE_P_CTL);
+  sleep_mode_enter();
+}
+
+static void power_off(void)
+{
+  NRF_LOG_INFO("Powering off...");
+#if defined(BOARD_R11)  
+  nrf_gpio_pin_set(APMATE_LED_3);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_3);
+  nrf_gpio_pin_set(APMATE_LED_2);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_2);
+  nrf_gpio_pin_set(APMATE_LED_1);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_1);
+  nrf_gpio_pin_set(APMATE_LED_3);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_3);
+  nrf_gpio_pin_set(APMATE_LED_2);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_2);
+  nrf_gpio_pin_set(APMATE_LED_1);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_1);
+#endif
+  power_off_instant();
+}
+#endif
 
 #if defined(TEMP_ONBOARD_ADC)
 #if defined(USE_SD_TEMP_API)
@@ -352,9 +473,17 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 
 #ifdef BATT_POWEROFF
         if(check_batt_adc){
-          if(tmp_batt_adc <= CUTOFF_VAL){ // When under 2.5V.
+          if(tmp_batt_adc <= CUTOFF_VAL){ // When under 3.3V.
               //nrf_gpio_pin_clear(APMATE_BAT_V);
-              nrf_gpio_pin_clear(APMATE_P_CTL);
+              //nrf_gpio_pin_clear(APMATE_P_CTL);
+              NRF_LOG_INFO("Batt adc under 3.3V...");
+              power_off();
+          }else{
+            NRF_LOG_INFO("Batt ADC read-check stop...");
+            check_batt_adc = false;
+            nrf_gpio_pin_clear(APMATE_BAT_V);
+            err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
+            APP_ERROR_CHECK(err_code);
           }
         }
 #endif
@@ -373,7 +502,9 @@ static void gap_params_init(void)
     uint32_t                err_code;
     ble_gap_conn_params_t   gap_conn_params;
     ble_gap_conn_sec_mode_t sec_mode;
-  
+#if defined(STATIC_KEY)
+    ble_opt_t               ble_opt;
+#endif
     uint8_t temp_name[]=DEVICE_NAME;
     ble_gap_addr_t temp_ad;
     sd_ble_gap_addr_get(&temp_ad);
@@ -399,9 +530,131 @@ static void gap_params_init(void)
 
     err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
     APP_ERROR_CHECK(err_code);
+
+#if defined(STATIC_KEY)
+    ble_opt.gap_opt.passkey.p_passkey = "000000";
+
+    err_code = sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &ble_opt);
+    APP_ERROR_CHECK(err_code);
+#endif
 }
      
+#if defined(USE_CARD_LED)
+#define LED_INIT_V    0
+#define LED123_500MS_REPEATED 1
+#define LED123_500MS  2
+#define LED123_1S     3
+#define LED321_500MS  4
+#define LED321_1S     5
+#define LEDALL_ONOFF  6
 
+#define CONTINUED     0
+static uint8_t alert_led_totalcnt = CONTINUED; //0:continuous
+
+static uint8_t led_type = LED_INIT_V;
+//command received
+static void led1_led2_led3_onoff_500ms_repeatedly(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS_REPEATED;
+  alert_led_totalcnt = CONTINUED;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//paing mode
+static void led1_led2_led3_onoff_1s_5cnt_paring_mode(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_1S;
+  alert_led_totalcnt = 5;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//paring connection
+static void led1_led2_led3_onoff_500ms_2cnt_paired_connectioned(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS;
+  alert_led_totalcnt = 2;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+/*
+//button_power off
+static void led3_led2_led1_onoff_500ms_2cnt_button_power_off(void)
+{
+  uint32_t err_code;
+
+  led_type = LED321_500MS;
+  alert_led_totalcnt = 2;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+*/
+
+//phonepp -> tracker
+static void led1_led2_led3_onoff_500ms_15cnt_phoneapp_to_tracker(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS;
+  alert_led_totalcnt = 15;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//tracker -> phoneapp
+static void led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp(void)
+{
+  uint32_t err_code;
+
+  led_type = LED321_1S;
+  alert_led_totalcnt = 15;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+
+//link loss
+static void led1_led2_led3_500ms_15cnt_linkloss(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS;
+  alert_led_totalcnt = 15;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//finished to search tracker
+static void led1_led2_led3_500ms_15cnt_finished_to_search_tracker(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS;
+  alert_led_totalcnt = 15;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+
+#define LED_STATE 2 //on or off
+void led_alert_start(void)
+{
+  uint32_t err_code;
+
+  led_type = LEDALL_ONOFF;
+  alert_led_totalcnt = 2*LED_STATE;
+  err_code = app_timer_start(m_led_timer_id,LED_INTERVAL0,0);
+  APP_ERROR_CHECK(err_code);
+}
+#else
 void led_alert_start(void)
 {
     uint32_t err_code;
@@ -418,7 +671,7 @@ void led_alert_start(void)
         APP_ERROR_CHECK(err_code);
     }
 }
-
+#endif
 
 /**@brief Function for handling the data from the Nordic UART Service.
  *
@@ -430,6 +683,9 @@ void led_alert_start(void)
  * @param[in] length   Length of the data.
  */
 /**@snippet [Handling the data received over BLE] */
+#ifdef USE_CARD_LED
+static bool led_alert_stop = false;
+#endif
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
 
@@ -437,15 +693,28 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
         switch(p_evt->params.rx_data.p_data[0]){
-          case 0xDD: //LED start.
-            led_alert_start();
+          case 0xDD: 
+          #ifdef USE_CARD_LED
+            led1_led2_led3_onoff_500ms_repeatedly();
+          #else
+            led_alert_start();//LED start on and off.
+          #endif
             break;
           case 0xBB: //LED stop.
+          #ifdef USE_CARD_LED
+            led_alert_stop = true;
+          #else
             alert_cnt = 100;
+          #endif
             break;
           case 0xAA: //OTA start.
             bootloader_start();
             break;
+
+          case 0xCC: //phoneapp -> tracker
+            led1_led2_led3_onoff_500ms_15cnt_phoneapp_to_tracker();
+            break;
+
           default:
           break;
         }
@@ -526,41 +795,6 @@ static void conn_params_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Function for putting the chip into sleep mode.
- *
- * @note This function will not return.
- */
-static void sleep_mode_enter(void)
-{
-    uint32_t err_code;
-
-#if defined(OLD_SENARIO)
-    nrf_gpio_cfg_sense_input(APMATE_BTN_1,NRF_GPIO_PIN_PULLUP,NRF_GPIO_PIN_SENSE_LOW);
-#endif
-
-#if (0)
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-    APP_ERROR_CHECK(err_code);
-
-    // Prepare wakeup buttons.
-    err_code = bsp_btn_ble_sleep_mode_prepare();
-    APP_ERROR_CHECK(err_code);
-#endif
-
-    // Go to system-off mode (this function will not return; wakeup will cause a reset).
-    err_code= sd_power_system_off();
-    APP_ERROR_CHECK(err_code);
-}
-
-#if defined(BTN_PWR_ON)
-static void power_off(void)
-{
-  NRF_LOG_INFO("Powering off...");
-  nrf_gpio_pin_clear(APMATE_P_CTL);
-  sleep_mode_enter();
-}
-#endif
-
 /**@brief Function for handling advertising events.
  *
  * @details This function will be called for advertising events which are passed to the application.
@@ -600,10 +834,25 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
     {
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected");
+            m_peer_to_be_deleted = PM_PEER_ID_INVALID;
+
+#if defined(BOARD_R11)
+            nrf_gpio_pin_set(APMATE_ID_CONTROL);
+#endif
+#if defined(WAKEUP_NOPAIRED)
+            paired_once = true;
+#endif
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+      #if defined(PEER_MNG)
+            // Start Security Request timer.
+            err_code = app_timer_start(m_sec_req_timer_id, SECURITY_REQUEST_DELAY, NULL);
+            APP_ERROR_CHECK(err_code);
+      #endif
+      #ifndef USE_CARD_LED
             if(m_led_timer_f){
                alert_cnt = 100;
              }
+      #endif
 #if defined(OLD_BATT_ADC)
             err_code = app_timer_start(m_battery_timer_id,BATTERY_INTERVAL,0);
             APP_ERROR_CHECK(err_code);
@@ -618,7 +867,21 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected");
             // LED indication will be changed when advertising starts.
+#if defined(BOARD_R11)
+            nrf_gpio_pin_clear(APMATE_ID_CONTROL);
+#endif
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
+      #if defined(PEER_MNG)
+            // Check if the last connected peer had not used MITM, if so, delete its bond information.
+            if (m_peer_to_be_deleted != PM_PEER_ID_INVALID)
+            {
+                err_code = pm_peer_delete(m_peer_to_be_deleted);
+                APP_ERROR_CHECK(err_code);
+                NRF_LOG_DEBUG("Collector's bond deleted");
+                m_peer_to_be_deleted = PM_PEER_ID_INVALID;
+            }
+      #endif
+
 #if defined(OLD_BATT_ADC)
             err_code = app_timer_stop(m_battery_timer_id);
             APP_ERROR_CHECK(err_code);
@@ -628,7 +891,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = app_timer_stop(m_temperature_timer_id);
             APP_ERROR_CHECK(err_code);
 #endif
-            led_alert_start();
+            //led_alert_start();
             break;
 
 #ifndef S140
@@ -646,13 +909,55 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 #endif
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
+      #if defined(PEER_MNG)
+            NRF_LOG_INFO("BLE_GAP_EVT_SEC_PARAMS_REQUEST");
+      #else
+        #if (0) //PEER_MNG
+            NRF_LOG_INFO("BLE_GAP_EVT_SEC_PARAMS_REQUEST");
+        #else
             // Pairing not supported
             err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
             APP_ERROR_CHECK(err_code);
+        #endif
+      #endif
             break;
+
+#if defined(PEER_MNG)
+        case BLE_GAP_EVT_PASSKEY_DISPLAY:
+        {
+            char passkey[PASSKEY_LENGTH + 1];
+            memcpy(passkey, p_ble_evt->evt.gap_evt.params.passkey_display.passkey, PASSKEY_LENGTH);
+            passkey[PASSKEY_LENGTH] = 0;
+            // Don't send delayed Security Request if security procedure is already in progress.
+            err_code = app_timer_stop(m_sec_req_timer_id);
+            APP_ERROR_CHECK(err_code);
+        #if (1)
+            NRF_LOG_INFO("Passkey: %s", nrf_log_push(passkey));
+        #else
+            NRF_LOG_INFO("Passkey: %s", passkey);
+        #endif
+        } break;
+#endif
+
+#if defined(STATIC_KEY)
+        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+        {
+         
+           NRF_LOG_INFO("GAP Passkey request.");
+           uint8_t passkey[] = "000000"; 
+           if (p_ble_evt->evt.gap_evt.params.auth_key_request.key_type == BLE_GAP_AUTH_KEY_TYPE_PASSKEY)
+           {
+               err_code = sd_ble_gap_auth_key_reply(p_ble_evt->evt.gap_evt.conn_handle, BLE_GAP_AUTH_KEY_TYPE_PASSKEY, passkey);
+               APP_ERROR_CHECK(err_code);
+           }
+         
+        } break;
+#endif
+
 #if !defined (S112)
          case BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST:
         {
+            NRF_LOG_INFO("BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST");
             ble_gap_data_length_params_t dl_params;
 
             // Clearing the struct will effectivly set members to @ref BLE_GAP_DATA_LENGTH_AUTO
@@ -662,13 +967,15 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         } break;
 #endif //!defined (S112)
         case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+            NRF_LOG_INFO("BLE_GATTS_EVT_SYS_ATTR_MISSING");
             // No system attributes have been stored.
             err_code = sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
             APP_ERROR_CHECK(err_code);
             break;
 
-#if (0) //Later, should be verified.
+#if (1) //Later, should be verified.
         case BLE_GATTC_EVT_TIMEOUT:
+            NRF_LOG_INFO("BLE_GATTC_EVT_TIMEOUT");
             // Disconnect on GATT Client timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
@@ -676,6 +983,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 
         case BLE_GATTS_EVT_TIMEOUT:
+            NRF_LOG_INFO("BLE_GATTS_EVT_TIMEOUT");
             // Disconnect on GATT Server timeout event.
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
@@ -683,12 +991,18 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 #endif
         case BLE_EVT_USER_MEM_REQUEST:
+            NRF_LOG_INFO("BLE_EVT_USER_MEM_REQUEST");
+        #if (1)//Used as ported.
+            err_code = sd_ble_user_mem_reply(m_conn_handle, NULL);
+        #else    
             err_code = sd_ble_user_mem_reply(p_ble_evt->evt.gattc_evt.conn_handle, NULL);
+        #endif    
             APP_ERROR_CHECK(err_code);
             break;
 
         case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST:
         {
+            NRF_LOG_INFO("BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST");
             ble_gatts_evt_rw_authorize_request_t  req;
             ble_gatts_rw_authorize_reply_params_t auth_reply;
 
@@ -816,13 +1130,55 @@ static void log_init(void)
 }
 
 #if defined(APP_BTN)
+static void app_button_init_click_cnt(void);
 #if !defined(BTN_PWR_ON)
 static uint32_t click_cnt, total_cnt = 0;
 #endif
-static void app_btn_timeout_handler(void * p_context)
+
+static void send_to_phoneapp_when_tracker_phone(void)
+{
+  uint32_t err_code;
+
+  if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+      uart_send_data[0] = 0x02;
+      uint16_t length = 1;
+      err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
+      //app_button_init_click_cnt();
+  }
+}
+
+static void send_to_phoneapp_click_cnt(void)
+{
+  uint32_t err_code;
+
+  if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+      //uart_send_data[0]=0x30+click_cnt/2;
+      uart_send_data[0] = 0xDD;
+      uint16_t length = 1;
+      err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
+      //app_button_init_click_cnt();
+  }
+}
+
+static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
 {
     uint32_t err_code;
     UNUSED_PARAMETER(p_context);
+  
+    NRF_LOG_INFO("3sec btn timer-> click_cnt: %d", (int)click_cnt);
+
+    if (click_cnt == 2){ //tracker -> phoneapp
+      send_to_phoneapp_when_tracker_phone();
+      led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp();
+    }
+
+    if ((click_cnt >= 2) && (click_cnt <= 5)){//0xDD
+      send_to_phoneapp_click_cnt(); 
+    }
+
+    app_button_init_click_cnt();
+
+    return;
 
 #if !defined(BTN_PWR_ON)
     //Do anything.
@@ -844,6 +1200,7 @@ static void app_btn_timeout_handler(void * p_context)
     click_cnt=0;
     total_cnt=0;
 #endif
+
 }
 #endif
 
@@ -854,14 +1211,24 @@ static void btn_power_on_timeout_handler(void * p_context)
     UNUSED_PARAMETER(p_context);
 
     if(nrf_gpio_pin_read(APMATE_BTN_1)==0){
+#if defined(BTN_LED1)
+      nrf_gpio_pin_set(APMATE_LED_1);
+#endif
       nrf_gpio_pin_set(APMATE_P_CTL); //Power on board.
       NRF_LOG_INFO("Power on already setted!");
 #if defined(BATT_POWEROFF)
       err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
       APP_ERROR_CHECK(err_code);
 #endif
+#if defined(WAKEUP_NOPAIRED)
+    err_code = app_timer_start(m_wakeup_nopaired_timer_id, WAKEUP_NOPAIRED_INTERVAL,0);
+    APP_ERROR_CHECK(err_code);
+#endif
     }else{
-      power_off();
+#if defined(BTN_LED1)
+      nrf_gpio_pin_clear(APMATE_LED_1);
+#endif
+      power_off_instant();
     }
 }
 #else
@@ -923,8 +1290,10 @@ static void btn_power_on_timeout_handler(void * p_context)
 #if defined(BATT_POWEROFF)
 static void batt_power_off_timeout_handler(void * p_context)
 {
-  check_batt_adc = true;
   NRF_LOG_INFO("Batt ADC read-check starts...");
+  nrf_gpio_pin_set(APMATE_BAT_V);
+  nrf_delay_us(100);
+  check_batt_adc = true;
 }
 #endif
 
@@ -950,6 +1319,253 @@ static void led_idle_timer_handler(void * p_context)
 }
 #endif
 
+#if defined(USE_CARD_LED)
+static void send_to_phoneapp_when_led_off(void)
+{
+    uint32_t err_code;
+
+    if(( pressed_cnt != 0) || (click_cnt > 0 )){ //button pressed.
+      uart_send_data[0]=0xEE;
+    }else{ //button Not pressed.			
+      uart_send_data[0]=0xFF;
+    }
+    if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+        uint16_t length = 1;
+        err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
+    }
+}
+
+static void led_all_clear(void)
+{
+    nrf_gpio_pin_clear(APMATE_LED_1);
+    nrf_gpio_pin_clear(APMATE_LED_2);
+    nrf_gpio_pin_clear(APMATE_LED_3);
+}
+
+static void led_all_set(void)
+{
+    nrf_gpio_pin_set(APMATE_LED_1);
+    nrf_gpio_pin_set(APMATE_LED_2);
+    nrf_gpio_pin_set(APMATE_LED_3);
+}
+
+#define INIT_CNT  0
+static uint32_t change_led_stat = INIT_CNT;
+static void led_timer_alert_handler(void * p_context)
+{
+  UNUSED_PARAMETER(p_context);
+  uint32_t err_code;
+
+  if(( pressed_cnt != 0) || (click_cnt > 0 ))
+  {
+    change_led_stat = INIT_CNT;
+    alert_led_totalcnt = 0;
+    //app_timer_stop();
+
+    //nrf_gpio_pin_clear(APMATE_LED_1);//LED1 paired woth button pressed.
+    nrf_gpio_pin_clear(APMATE_LED_2);
+    nrf_gpio_pin_clear(APMATE_LED_3);
+
+    send_to_phoneapp_when_led_off();
+
+  }
+  else //When pressed_cnt > 0
+  {
+      if(led_type == LEDALL_ONOFF){//5
+        switch (change_led_stat%2){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_1);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_3);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                break;
+
+            default:
+                break;
+        }
+
+        if (led_alert_stop == false){
+          change_led_stat++;
+          //if (change_led_stat < alert_led_totalcnt){
+            err_code = app_timer_start(m_led_timer_id,LED_INTERVAL0,0);
+            APP_ERROR_CHECK(err_code);
+          //}
+        }else{
+          change_led_stat = INIT_CNT;
+          led_all_clear();
+        }
+      }else if(led_type == LED123_500MS_REPEATED ){//1
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_3);
+                break;
+
+            default:
+                break;
+        }
+
+        if (led_alert_stop == false){
+          change_led_stat++;
+          if (alert_led_totalcnt == CONTINUED){ // repeatedly.
+            err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+            APP_ERROR_CHECK(err_code);
+          }
+        }else{
+          change_led_stat = INIT_CNT;
+          led_all_clear();
+        }
+      }else if(led_type == LED123_500MS){
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_3);
+                break;
+
+            default:
+                break;
+        }
+
+        change_led_stat++;
+        if ( change_led_stat < alert_led_totalcnt){
+            err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+            APP_ERROR_CHECK(err_code);
+        }else{
+            change_led_stat = INIT_CNT;
+            send_to_phoneapp_when_led_off();
+            led_all_clear();
+        }
+      }else if(led_type == LED123_1S){//2
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_3);
+                break;
+
+            default:
+                break;
+        }
+
+        change_led_stat++;
+        if ( change_led_stat < alert_led_totalcnt){
+            err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+            APP_ERROR_CHECK(err_code);
+        }else{
+            change_led_stat = INIT_CNT;
+            send_to_phoneapp_when_led_off();
+            led_all_clear();
+        }
+
+      }else if(led_type == LED321_500MS){//3
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_3);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_1);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_1);
+                break;
+
+            default:
+                break;
+        }
+
+        change_led_stat++;
+        if ( change_led_stat < alert_led_totalcnt){
+            err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+            APP_ERROR_CHECK(err_code);
+        }else{
+            change_led_stat = INIT_CNT;
+            send_to_phoneapp_when_led_off();
+            led_all_clear();
+        }
+
+      }else if(led_type == LED321_1S){//4
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_3);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_1);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_1);
+                break;
+
+            default:
+                break;
+        }
+
+        change_led_stat++;
+        if ( change_led_stat < alert_led_totalcnt){
+            err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+            APP_ERROR_CHECK(err_code);
+        }else{
+            change_led_stat = INIT_CNT;
+            send_to_phoneapp_when_led_off();
+            led_all_clear();
+        }
+      }
+  }
+}
+#else
 static void led_timer_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
@@ -959,6 +1575,7 @@ static void led_timer_handler(void * p_context)
         alert_on=false;
         nrf_gpio_pin_clear(APMATE_LED_1);
         nrf_gpio_pin_clear(APMATE_LED_2);
+        nrf_gpio_pin_clear(APMATE_LED_3);
        
         if(alert_btn_on){
                 alert_btn_on=false;
@@ -978,11 +1595,13 @@ static void led_timer_handler(void * p_context)
         case 0:
             nrf_gpio_pin_set(APMATE_LED_1);
             nrf_gpio_pin_set(APMATE_LED_2);
+            nrf_gpio_pin_set(APMATE_LED_3);
             
             break;
         case 2:
             nrf_gpio_pin_clear(APMATE_LED_1);
             nrf_gpio_pin_clear(APMATE_LED_2);
+            nrf_gpio_pin_clear(APMATE_LED_3);
             break;
 
         default:
@@ -992,6 +1611,7 @@ static void led_timer_handler(void * p_context)
     APP_ERROR_CHECK(err_code);
 
 }
+#endif
 
 #if defined(OLD_BATT_ADC)
 static uint32_t sec_cnt;
@@ -1044,6 +1664,45 @@ static void temperature_timeout_handler(void * p_context)
 }
 #endif
 
+#if defined(WAKEUP_NOPAIRED)
+static void wakeup_nopaired_timeout_handler(void * p_context)
+{
+  uint32_t err_code;
+
+  err_code = app_timer_stop(m_wakeup_nopaired_timer_id);
+  APP_ERROR_CHECK(err_code);
+
+  if (paired_once){
+  }else{
+    NRF_LOG_INFO("nopaired_timeout...");
+    power_off();
+  }
+}
+#endif
+
+/**@brief Function for handling the Security Request timer timeout.
+ *
+ * @details This function will be called each time the Security Request timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void sec_req_timeout_handler(void * p_context)
+{
+    ret_code_t err_code;
+
+    if (m_conn_handle != BLE_CONN_HANDLE_INVALID)
+    {
+        // Initiate bonding.
+        NRF_LOG_DEBUG("Start encryption");
+        err_code = pm_conn_secure(m_conn_handle, false);
+        if (err_code != NRF_ERROR_INVALID_STATE)
+        {
+            APP_ERROR_CHECK(err_code);
+        }
+    }
+}
+
 void timer_init(void)
 {
     uint32_t err_code;
@@ -1076,11 +1735,18 @@ void timer_init(void)
     APP_ERROR_CHECK(err_code);
 
 #endif
+
+#if defined(USE_CARD_LED)
+    err_code = app_timer_create(&m_led_timer_id,
+                            APP_TIMER_MODE_SINGLE_SHOT, 
+                            led_timer_alert_handler);
+    APP_ERROR_CHECK(err_code);
+#else
     err_code = app_timer_create(&m_led_timer_id,
                             APP_TIMER_MODE_SINGLE_SHOT, 
                             led_timer_handler);
     APP_ERROR_CHECK(err_code);
-
+#endif
 
 #if defined(OLD_BATT_ADC)
     err_code = app_timer_create(&m_battery_timer_id,
@@ -1096,6 +1762,19 @@ void timer_init(void)
     APP_ERROR_CHECK(err_code);
 #endif
 
+#if defined(WAKEUP_NOPAIRED)
+    err_code = app_timer_create(&m_wakeup_nopaired_timer_id,
+                            APP_TIMER_MODE_SINGLE_SHOT,
+                            wakeup_nopaired_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+#endif
+
+    // Create Security Request timer.
+    err_code = app_timer_create(&m_sec_req_timer_id,
+                                APP_TIMER_MODE_SINGLE_SHOT,
+                                sec_req_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+
 }
 
 
@@ -1104,6 +1783,149 @@ void timer_init(void)
  * @param[in] pin_no        The pin that the event applies to.
  * @param[in] button_action The button action (press/release).
  */
+#if defined(BTN_LED1)
+#define SEC5  5000
+#define SEC3  3000
+#define SEC1  1000
+#define MSEC500 500
+
+static void app_button_init_click_cnt(void)
+{
+  click_cnt = 0;
+}
+
+static void app_button_init_pressed_cnt(void)
+{
+  pressed_cnt = 0;
+}
+static void app_button_init_time_variable(void)
+{
+  pressed_duration = 0;
+  released_time = 0;
+  pressed_time = 0;
+}
+
+static void send_to_phoneapp_selfcamera(void)
+{
+  uint32_t err_code;
+
+  if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+    uart_send_data[0] = 0x01;
+    uint16_t length = 1;
+    err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
+  }
+}
+static void app_button_event_generator(void)
+{
+  pressed_duration = released_time - pressed_time;
+  if (pressed_cnt == 1){
+    if(pressed_duration)
+    {
+      if(pressed_duration >= SEC5){// btn poweroff.
+        NRF_LOG_INFO("Over 5 secs, pressed...button power off...");
+        power_off();
+      }else if(pressed_duration >= SEC3){// go into pairing mode.
+        NRF_LOG_INFO("Over 3 secs, pressed...");
+      }else if(pressed_duration >= SEC1){// Do nothing.
+        NRF_LOG_INFO("Over 1 secs, pressed...");
+      }else if(pressed_duration >= MSEC500){// Do nothing.
+        NRF_LOG_INFO("Over 0.5 secs, pressed...");
+      }else if(pressed_duration < MSEC500){// Self-camera.
+        NRF_LOG_INFO("Under 0.5 secs, pressed...");
+        if(m_conn_handle != BLE_CONN_HANDLE_INVALID){// When paired only, send selfcamera command.
+          NRF_LOG_INFO("button self-camerea...");
+          send_to_phoneapp_selfcamera();
+        }
+      }
+    }
+  }
+
+  app_button_init_time_variable();
+  app_button_init_pressed_cnt();
+
+}
+
+static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
+{
+    ret_code_t err_code;
+
+    switch (pin_no)
+    {
+      case APMATE_BTN_1:
+        switch (button_action)
+        {
+          case APP_BUTTON_PUSH:
+          {
+            NRF_LOG_INFO("Button pressed...");
+            nrf_gpio_pin_set(APMATE_LED_1);
+            pressed_time = app_timer_cnt_get()*1000/32768;//milli-sec
+            pressed_cnt++;
+            click_cnt++; // check for timer purpose.
+            NRF_LOG_INFO("pressed_time: %d, pressed_cnt: %d, click_cnt: %d", (int)pressed_time, (int)pressed_cnt, (int)click_cnt);
+
+#ifdef USE_CARD_LED
+       #if defined(APP_BTN)
+            err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
+            APP_ERROR_CHECK(err_code);
+       #else
+            err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
+            APP_ERROR_CHECK(err_code);
+       #endif
+#else
+            if(alert_on){
+                alert_cnt=100;
+                alert_btn_on=true;
+            }else{
+              #if defined(APP_BTN)
+                err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
+                APP_ERROR_CHECK(err_code);
+              #else
+                err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
+                APP_ERROR_CHECK(err_code);
+              #endif
+            }
+#endif
+           }
+           break;
+
+           case APP_BUTTON_RELEASE:
+           {  
+              NRF_LOG_INFO("Button releaed...");
+              nrf_gpio_pin_clear(APMATE_LED_1);
+
+              if (pressed_cnt == 1){//when released pressed fisrt, bugfix.
+                released_time = app_timer_cnt_get()*1000/32768; //milli-sec
+                NRF_LOG_INFO("released_time: %d, pressed_cnt: %d, click_cnt: %d", (int)released_time, (int)pressed_cnt, (int)click_cnt);
+              }
+           }
+           break;
+#if (0)
+           case BSP_BUTTON_ACTION_LONG_PUSH:
+           {
+            //Do nothing here.
+           }
+           break;
+#endif
+         }   
+      break;
+
+      default:
+         APP_ERROR_HANDLER(pin_no);
+      break;
+    }
+    
+    if(pressed_time == 0){//when released pressed fisrt, bugfix.
+      app_button_init_time_variable();
+      app_button_init_pressed_cnt();
+      app_button_init_click_cnt();
+    }
+
+    if((pressed_time != 0) && (released_time != 0) && (pressed_cnt == 1)){
+      app_button_event_generator();
+    }else{
+    }
+}
+#else
 static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
 {
     ret_code_t err_code;
@@ -1154,7 +1976,7 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             break;
     }
 }
-
+#endif
 
 /**@brief Function for initializing the button handler module.
  */
@@ -1178,19 +2000,31 @@ void gpio_init(void)
 
         nrf_gpio_cfg_output(APMATE_BAT_V);
         nrf_gpio_cfg_output(APMATE_P_CTL);
+#if defined(BOARD_R11)
+        nrf_gpio_cfg_output(APMATE_ID_CONTROL);
+#endif
+#if defined(BOARD_R7)
         nrf_gpio_cfg_output(APMATE_OUT_CHECK);
-       
-	nrf_gpio_pin_set(APMATE_BAT_V);
-        //nrf_gpio_pin_set(APMATE_P_CTL);
+#endif
+	nrf_gpio_pin_clear(APMATE_BAT_V);
+#if defined(BOARD_R11)
+        nrf_gpio_pin_clear(APMATE_ID_CONTROL);
+#endif
+#if defined(BOARD_R7)        
         nrf_gpio_pin_set(APMATE_OUT_CHECK);
-
+#endif
 	nrf_gpio_cfg_input(APMATE_BTN_1,NRF_GPIO_PIN_PULLUP);
 	
         nrf_gpio_cfg_output(APMATE_LED_1);
 	nrf_gpio_cfg_output(APMATE_LED_2);
-	
+#if defined(BOARD_R11)
+        nrf_gpio_cfg_output(APMATE_LED_3);
+#endif
         nrf_gpio_pin_clear(APMATE_LED_1);
 	nrf_gpio_pin_clear(APMATE_LED_2);
+#if defined(BOARD_R11)
+        nrf_gpio_pin_clear(APMATE_LED_3);
+#endif
 }
 
 #if defined(BTN_PWR_ON)
@@ -1200,10 +2034,16 @@ static void power_on(void)
 
   if(nrf_gpio_pin_read(APMATE_BTN_1)==0){
     NRF_LOG_INFO("Power on timer start...");
+#if defined(BTN_LED1)
+    nrf_gpio_pin_set(APMATE_LED_1);
+#endif
     err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL1,0);
     APP_ERROR_CHECK(err_code);
   }else{
-    power_off();
+#if defined(BTN_LED1)
+    nrf_gpio_pin_clear(APMATE_LED_1);
+#endif
+    power_off_instant();
   }
 }
 #else
@@ -1309,9 +2149,13 @@ static void saadc_init(void)
     ret_code_t err_code = nrf_drv_saadc_init(NULL, saadc_event_handler);
     APP_ERROR_CHECK(err_code);
 
+#if defined(BOARD_R7)
     nrf_saadc_channel_config_t channel_config =
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN6);
-
+#elif defined(BOARD_R11)
+    nrf_saadc_channel_config_t channel_config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN3);
+#endif
     err_code = nrf_drv_saadc_channel_init(0, &channel_config);
     APP_ERROR_CHECK(err_code);
 
@@ -1445,18 +2289,218 @@ static void uart_init(void)
 /**@snippet [UART Initialization] */
 #endif//#if defined(USE_UART)
 
+/**@brief Function for handling Peer Manager events.
+ *
+ * @param[in] p_evt  Peer Manager event.
+ */
+static void pm_evt_handler(pm_evt_t const * p_evt)
+{
+    ret_code_t err_code;
+
+    switch (p_evt->evt_id)
+    {
+        case PM_EVT_BONDED_PEER_CONNECTED:
+        {
+            NRF_LOG_INFO("Connected to a previously bonded device.");
+            // Start Security Request timer.
+            err_code = app_timer_start(m_sec_req_timer_id, SECURITY_REQUEST_DELAY, NULL);
+            APP_ERROR_CHECK(err_code);
+        } break;
+
+        case PM_EVT_CONN_SEC_SUCCEEDED:
+        {
+            pm_conn_sec_status_t conn_sec_status;
+
+            // Check if the link is authenticated (meaning at least MITM).
+            err_code = pm_conn_sec_status_get(p_evt->conn_handle, &conn_sec_status);
+            APP_ERROR_CHECK(err_code);
+
+            if (conn_sec_status.mitm_protected)
+            {
+                NRF_LOG_INFO("Link secured. Role: %d. conn_handle: %d, Procedure: %d",
+                             ble_conn_state_role(p_evt->conn_handle),
+                             p_evt->conn_handle,
+                             p_evt->params.conn_sec_succeeded.procedure);
+            }
+            else
+            {
+                // The peer did not use MITM, disconnect.
+                NRF_LOG_INFO("Collector did not use MITM, disconnecting");
+                err_code = pm_peer_id_get(m_conn_handle, &m_peer_to_be_deleted);
+                APP_ERROR_CHECK(err_code);
+                err_code = sd_ble_gap_disconnect(m_conn_handle,
+                                                 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+                APP_ERROR_CHECK(err_code);
+            }
+        } break;
+
+        case PM_EVT_CONN_SEC_FAILED:
+        {
+            NRF_LOG_INFO("Failed to secure connection. Disconnecting.");
+            err_code = sd_ble_gap_disconnect(m_conn_handle,
+                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+            if (err_code != NRF_ERROR_INVALID_STATE)
+            {
+                APP_ERROR_CHECK(err_code);
+            }
+            m_conn_handle = BLE_CONN_HANDLE_INVALID;
+        } break;
+
+        case PM_EVT_CONN_SEC_CONFIG_REQ:
+        {
+            // Reject pairing request from an already bonded peer.
+            pm_conn_sec_config_t conn_sec_config = {.allow_repairing = false};
+            pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
+        } break;
+
+        case PM_EVT_STORAGE_FULL:
+        {
+            // Run garbage collection on the flash.
+            err_code = fds_gc();
+            if (err_code == FDS_ERR_BUSY || err_code == FDS_ERR_NO_SPACE_IN_QUEUES)
+            {
+                // Retry.
+            }
+            else
+            {
+                APP_ERROR_CHECK(err_code);
+            }
+        } break;
+
+        case PM_EVT_PEERS_DELETE_SUCCEEDED:
+        {
+            advertising_start(false);
+        } break;
+
+        case PM_EVT_LOCAL_DB_CACHE_APPLY_FAILED:
+        {
+            // The local database has likely changed, send service changed indications.
+            pm_local_database_has_changed();
+        } break;
+
+        case PM_EVT_PEER_DATA_UPDATE_FAILED:
+        {
+            // Assert.
+            APP_ERROR_CHECK(p_evt->params.peer_data_update_failed.error);
+        } break;
+
+        case PM_EVT_PEER_DELETE_FAILED:
+        {
+            // Assert.
+            APP_ERROR_CHECK(p_evt->params.peer_delete_failed.error);
+        } break;
+
+        case PM_EVT_PEERS_DELETE_FAILED:
+        {
+            // Assert.
+            APP_ERROR_CHECK(p_evt->params.peers_delete_failed_evt.error);
+        } break;
+
+        case PM_EVT_ERROR_UNEXPECTED:
+        {
+            // Assert.
+            APP_ERROR_CHECK(p_evt->params.error_unexpected.error);
+        } break;
+
+        case PM_EVT_CONN_SEC_START:
+        case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
+        case PM_EVT_PEER_DELETE_SUCCEEDED:
+        case PM_EVT_LOCAL_DB_CACHE_APPLIED:
+        case PM_EVT_SERVICE_CHANGED_IND_SENT:
+        case PM_EVT_SERVICE_CHANGED_IND_CONFIRMED:
+        default:
+            break;
+    }
+}
+
+/**@brief Function for the Peer Manager initialization.
+ */
+static void peer_manager_init(void)
+{
+    ble_gap_sec_params_t sec_param;
+    ret_code_t           err_code;
+
+    err_code = pm_init();
+    APP_ERROR_CHECK(err_code);
+
+    memset(&sec_param, 0, sizeof(ble_gap_sec_params_t));
+
+    // Security parameters to be used for all security procedures.
+    sec_param.bond           = SEC_PARAM_BOND;
+    sec_param.mitm           = SEC_PARAM_MITM;
+    sec_param.lesc           = SEC_PARAM_LESC;
+    sec_param.keypress       = SEC_PARAM_KEYPRESS;
+    sec_param.io_caps        = SEC_PARAM_IO_CAPABILITIES;
+    sec_param.oob            = SEC_PARAM_OOB;
+    sec_param.min_key_size   = SEC_PARAM_MIN_KEY_SIZE;
+    sec_param.max_key_size   = SEC_PARAM_MAX_KEY_SIZE;
+    sec_param.kdist_own.enc  = 1;
+    sec_param.kdist_own.id   = 1;
+    sec_param.kdist_peer.enc = 1;
+    sec_param.kdist_peer.id  = 1;
+
+    err_code = pm_sec_params_set(&sec_param);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = pm_register(pm_evt_handler);
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Clear bond information from persistent storage.
+ */
+static void delete_bonds(void)
+{
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("Erase bonds!");
+
+    err_code = pm_peers_delete();
+    APP_ERROR_CHECK(err_code);
+}
+
+/**@brief Function for starting advertising.
+ */
+static void advertising_start(bool erase_bonds)
+{
+    if (erase_bonds == true)
+    {
+        delete_bonds();
+        // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
+    }
+    else
+    {
+        ret_code_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
+
+        APP_ERROR_CHECK(err_code);
+    }
+}
+
+static void get_bonds_config(bool * p_erase_bonds)
+{
+  ret_code_t err_code;
+  bsp_event_t startup_event;
+
+  startup_event = BSP_EVENT_NOTHING;//startup_event_extract
+  //startup_event = BSP_EVENT_CLEAR_BONDING_DATA;//startup_event_extract
+
+  *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
+}
+
 /**@brief Application main function.
  */
 int main(void)
 {
     uint32_t err_code;
     int32_t temperature = 0;
-    bool     erase_bonds;
+    bool     erase_bonds = false;
 
     // Initialize.
     gpio_init();
     nrf_delay_ms(200);
     timer_init();
+#if (0)
+    get_bonds_config(&erase_bonds);//buttons_leds_init
+#endif
 #if defined(USE_UART)
     uart_init();
 #endif
@@ -1492,6 +2536,9 @@ int main(void)
     services_init();
     advertising_init();
     conn_params_init();
+#if defined(PEER_MNG)
+    peer_manager_init();
+#endif
 
 #if defined(USE_TEST)
     do_test();
@@ -1505,8 +2552,12 @@ int main(void)
 #endif
     NRF_LOG_INFO("APMATE Start!");
 
+#if defined(PEER_MNG)
+    advertising_start(erase_bonds);
+#else
     err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
+#endif
 
     // Enter main loop.
     while(true)

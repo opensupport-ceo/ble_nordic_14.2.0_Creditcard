@@ -8,29 +8,12 @@
 #ifndef CUSTOM_FEATURE_H
 #define CUSTOM_FEATURE_H
 
-/* Currently, applied to Board R7 schematic */
+/* Currently, not applied to Board R7 schematic */
 #define BOARD_R7
+#undef BOARD_R7
 
-#if defined(BOARD_R7)
-#define APMATE_LED_1 0
-#define APMATE_LED_2 1
-
-#define APMATE_BTN_1 5
-#define APMATE_P_CTL 15
-#define APMATE_BAT_V 8
-#define APMATE_OUT_CHECK 18
-
-#define APMATE_BAT_VC 30 //AIN6
-#define APMATE_V_TEMP 29 //AIN5
-#else
-
-#define APMATE_LED_1 17
-#define APMATE_LED_2 18
-
-#define APMATE_BTN_1 13
-#define APMATE_BAT_V 19
-#define APMATE_OUT_CHECK 20
-#endif//#if defined(BOARD_R7)
+/* Currently, applied to Board R11 schematic */
+#define BOARD_R11
 
 /* Temp feature for debug*/
 #define USE_TEMP_DEBUG
@@ -49,6 +32,10 @@
 
 /* Feature for new led senario using two leds */
 #define USE_NEWLED
+#undef USE_NEWLED
+
+/* Feature for led1 senario paired wirh button */
+#define BTN_LED1
 
 /* For reading battery adc*/
 #define BATT_ADC
@@ -59,7 +46,7 @@
 
 /* Power off on under 2.5V */
 #define BATT_POWEROFF
-#undef BATT_POWEROFF
+//#undef BATT_POWEROFF
 #endif
 
 #if defined(BATT_ADC)
@@ -90,5 +77,21 @@
 ** Used only under development.
 */
 #define USE_TEST
+/* When op paired for 10 min, after wakeup */
+#define WAKEUP_NOPAIRED
 
+/* Power off when button pressed for 5 sec */
+#define BTN_POWEROFF
+
+/* peer manager */
+#define PEER_MNG
+#undef PEER_MNG
+#if defined(PEER_MNG)
+/* Use static pass-key */
+#define STATIC_KEY
+#endif
+
+//#define STATIC_KEY
+
+#define USE_CARD_LED
 #endif
