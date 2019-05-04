@@ -86,14 +86,14 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="5" y="2470" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2465" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="2470" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="2465" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="358" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.c" selected="0" top="358" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="39" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/toolchain/ses/ses_nrf52_Vectors.s" selected="0" top="30" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="179" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/button/app_button.c" selected="0" top="159" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="86" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="568" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/gpiote/nrf_drv_gpiote.c" selected="0" top="568" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/boards/boards.c" selected="0" top="141" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="216" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/boards/pca10040.h" selected="0" top="210" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="216" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/boards/pca10040.h" selected="1" top="210" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="591" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/hal/nrf_gpio.h" selected="0" top="591" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="3107" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="3103" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="609" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/bsp/bsp.c" selected="0" top="605" codecName="Default"/>
@@ -109,7 +109,7 @@
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="95" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/custom_feature.h" selected="0" top="86" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="470" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/saadc/nrf_drv_saadc.c" selected="0" top="474" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="85" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/hal/nrf_saadc.h" selected="0" top="76" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="48" y="287" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_nus/ble_nus.c" selected="0" top="283" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="287" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_nus/ble_nus.c" selected="0" top="283" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="767" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/nrf_soc.h" selected="0" top="761" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="911" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/timer/app_timer.c" selected="0" top="900" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="145" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/experimental_log/nrf_log.h" selected="0" top="136" codecName="Default"/>
@@ -129,8 +129,8 @@
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="404" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/ble_gap.h" selected="0" top="395" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="251" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_util.h" selected="0" top="242" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="86" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/peer_manager/peer_manager_types.h" selected="0" top="77" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="28" y="87" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_nus/ble_nus.h" selected="0" top="75" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="23" y="98" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/ble_types.h" selected="0" top="89" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="87" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_nus/ble_nus.h" selected="0" top="75" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="98" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/ble_types.h" selected="0" top="89" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3711"/>
+ <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3199"/>
 </session>

@@ -77,6 +77,8 @@
 ** Used only under development.
 */
 #define USE_TEST
+#undef USE_TEST
+
 /* When op paired for 10 min, after wakeup */
 #define WAKEUP_NOPAIRED
 
@@ -94,4 +96,7 @@
 //#define STATIC_KEY
 
 #define USE_CARD_LED
+
+#define USE_NEW_TRACKER_SEARCH_PHONE
+#define USE_NEW_SELFCAMERA
 #endif
