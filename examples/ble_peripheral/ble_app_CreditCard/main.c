@@ -329,9 +329,8 @@ static void power_off_instant(void)
   sleep_mode_enter();
 }
 
-static void power_off(void)
+static void led321_onoff_500ms_2cnt_poweroff(void)
 {
-  NRF_LOG_INFO("Powering off...");
 #if defined(BOARD_R11)  
   nrf_gpio_pin_set(APMATE_LED_3);
   nrf_delay_ms(500);
@@ -352,6 +351,11 @@ static void power_off(void)
   nrf_delay_ms(500);
   nrf_gpio_pin_clear(APMATE_LED_1);
 #endif
+}
+static void power_off(void)
+{
+  NRF_LOG_INFO("Powering off...");
+  led321_onoff_500ms_2cnt_poweroff();
   power_off_instant();
 }
 #endif
@@ -548,6 +552,8 @@ static void gap_params_init(void)
 }
      
 #if defined(USE_CARD_LED)
+#define LED_STATE 3 //led1, led2, led3
+
 #define LED_INIT_V    0
 #define LED123_500MS_REPEATED 1
 #define LED123_500MS  2
@@ -577,8 +583,19 @@ static void led1_led2_led3_onoff_1s_5cnt_paring_mode(void)
   uint32_t err_code;
 
   led_type = LED123_1S;
-  alert_led_totalcnt = 5;
+  alert_led_totalcnt = 5*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//power-on
+static void led1_led2_led3_onoff_500ms_1cnt_poweron(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_500MS;
+  alert_led_totalcnt = 1*LED_STATE;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
 
@@ -588,7 +605,7 @@ static void led1_led2_led3_onoff_500ms_2cnt_paired_connectioned(void)
   uint32_t err_code;
 
   led_type = LED123_500MS;
-  alert_led_totalcnt = 2;
+  alert_led_totalcnt = 2*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
@@ -600,7 +617,7 @@ static void led3_led2_led1_onoff_500ms_2cnt_button_power_off(void)
   uint32_t err_code;
 
   led_type = LED321_500MS;
-  alert_led_totalcnt = 2;
+  alert_led_totalcnt = 2*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
@@ -612,7 +629,7 @@ static void led1_led2_led3_onoff_500ms_15cnt_phoneapp_to_tracker(void)
   uint32_t err_code;
 
   led_type = LED123_500MS;
-  alert_led_totalcnt = 15;
+  alert_led_totalcnt = 15*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
@@ -623,7 +640,7 @@ static void led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp(void)
   uint32_t err_code;
 
   led_type = LED321_1S;
-  alert_led_totalcnt = 15;
+  alert_led_totalcnt = 15*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
   APP_ERROR_CHECK(err_code);
 }
@@ -635,7 +652,7 @@ static void led1_led2_led3_500ms_15cnt_linkloss(void)
   uint32_t err_code;
 
   led_type = LED123_500MS;
-  alert_led_totalcnt = 15;
+  alert_led_totalcnt = 15*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
@@ -646,13 +663,11 @@ static void led1_led2_led3_500ms_15cnt_finished_to_search_tracker(void)
   uint32_t err_code;
 
   led_type = LED123_500MS;
-  alert_led_totalcnt = 15;
+  alert_led_totalcnt = 15*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
 
-
-#define LED_STATE 2 //on or off
 void led_alert_start(void)
 {
   uint32_t err_code;
@@ -1325,6 +1340,23 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
 }
 #endif
 
+static void led123_onoff_500ms_1cnt_poweron(void)
+{
+  nrf_gpio_pin_set(APMATE_LED_1);
+  nrf_gpio_pin_clear(APMATE_LED_2);
+  nrf_gpio_pin_clear(APMATE_LED_3);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_1);
+  nrf_gpio_pin_set(APMATE_LED_2);
+  nrf_gpio_pin_clear(APMATE_LED_3);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_1);
+  nrf_gpio_pin_clear(APMATE_LED_2);
+  nrf_gpio_pin_set(APMATE_LED_3);
+  nrf_delay_ms(500);
+  nrf_gpio_pin_clear(APMATE_LED_3);
+}
+
 #if defined(BTN_PWR_ON)
 static void btn_power_on_timeout_handler(void * p_context)
 {
@@ -1337,6 +1369,13 @@ static void btn_power_on_timeout_handler(void * p_context)
 #endif
       nrf_gpio_pin_set(APMATE_P_CTL); //Power on board.
       NRF_LOG_INFO("Power on already setted!");
+      
+#if (1)
+      led123_onoff_500ms_1cnt_poweron();
+#else
+      led1_led2_led3_onoff_500ms_1cnt_poweron();
+#endif
+
 #if defined(BATT_POWEROFF)
       err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
       APP_ERROR_CHECK(err_code);
@@ -2078,7 +2117,10 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
 
            case APP_BUTTON_RELEASE:
            {  
-              NRF_LOG_INFO("Button releaed...");
+              if (pressed_cnt == 1){//bugfix, omit log when poweron button.
+                NRF_LOG_INFO("Button releaed...");
+              }
+              
               nrf_gpio_pin_clear(APMATE_LED_1);
 
               if (pressed_cnt == 1){//when released pressed fisrt, bugfix.
