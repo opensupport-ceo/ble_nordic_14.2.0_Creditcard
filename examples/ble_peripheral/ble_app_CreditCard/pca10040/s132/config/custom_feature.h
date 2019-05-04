@@ -99,4 +99,6 @@
 
 #define USE_NEW_TRACKER_SEARCH_PHONE
 #define USE_NEW_SELFCAMERA
+
+#define USE_NEW_POWEROFF
 #endif

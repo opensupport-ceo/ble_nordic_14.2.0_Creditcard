@@ -178,6 +178,7 @@ APP_TIMER_DEF(m_led_timer_id);
 APP_TIMER_DEF(m_btn_timer_id);
 #if defined(APP_BTN)
 APP_TIMER_DEF(m_app_btn_timer_id);
+APP_TIMER_DEF(m_app_btn_poweroff_timer_id);
 #endif
 #if defined(OLD_BATT_ADC)
 APP_TIMER_DEF(m_battery_timer_id);
@@ -199,8 +200,9 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 
 
 #if defined(BTN_PWR_ON)
-#define BTN1_INTERVAL1    APP_TIMER_TICKS(1000)
-#define BTN1_INTERVAL2    APP_TIMER_TICKS(3000) //3sec time.
+#define BTN1_INTERVAL1          APP_TIMER_TICKS(1000)
+#define BTN1_INTERVAL2          APP_TIMER_TICKS(3000) //3sec time.
+#define BTN1_POWEROFF_INTERVAL2 APP_TIMER_TICKS(5000)
 #else
 #define BTN1_INTERVAL                                             APP_TIMER_TICKS(100)
 #endif
@@ -1291,12 +1293,31 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
   }
 }
 
+static bool btn_poweroff_cnt = false;
+static void app_btn_poweroff_timeout_handler(void * p_context)
+{
+    uint32_t err_code;
+    UNUSED_PARAMETER(p_context);
+
+    NRF_LOG_INFO("5sec btn timer-> pressed_cnt: %d, btn_poweroff_cnt: %d", (int)pressed_cnt, (int)btn_poweroff_cnt);
+
+    if ((pressed_cnt == 1) && (btn_poweroff_cnt == true)){
+        if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+          send_to_phoneapp_power_off();
+        }
+        
+        btn_poweroff_cnt = false;
+        NRF_LOG_INFO("button power off...");
+        power_off();
+    }
+}
+
 static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
 {
     uint32_t err_code;
     UNUSED_PARAMETER(p_context);
   
-    NRF_LOG_INFO("3sec btn timer-> click_cnt: %d", (int)click_cnt);
+    NRF_LOG_INFO("3sec btn timer-> click_cnt: %d, would be initialized.", (int)click_cnt);
 
 #ifdef USE_NEW_TRACKER_SEARCH_PHONE
 #else
@@ -1912,6 +1933,10 @@ void timer_init(void)
                             app_btn_timeout_handler);
     APP_ERROR_CHECK(err_code);
 #endif
+    err_code = app_timer_create(&m_app_btn_poweroff_timer_id,
+                            APP_TIMER_MODE_SINGLE_SHOT, /* SINGLE_SHOT*/
+                            app_btn_poweroff_timeout_handler);
+    APP_ERROR_CHECK(err_code);
 
 #if defined(USE_NEWLED)
     err_code = app_timer_create(&m_led_idle_timer_id,
@@ -2012,12 +2037,14 @@ static void app_button_event_generator(void)
       if(pressed_duration >= SEC5){// btn poweroff.
         NRF_LOG_INFO("Over 5 secs, pressed...");
 
+#ifndef USE_NEW_POWEROFF
         if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
           send_to_phoneapp_power_off();
         }
 
         NRF_LOG_INFO("button power off...");
         power_off();
+#endif
 
       }else if(pressed_duration >= SEC3){// go into pairing mode.
         NRF_LOG_INFO("Over 3 secs, pressed...");
@@ -2088,11 +2115,15 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             pressed_time = app_timer_cnt_get()*1000/32768;//milli-sec
             pressed_cnt++;
             click_cnt++; // check for timer purpose.
+            btn_poweroff_cnt = true;
             NRF_LOG_INFO("pressed_time: %d, pressed_cnt: %d, click_cnt: %d", (int)pressed_time, (int)pressed_cnt, (int)click_cnt);
 
 #ifdef USE_CARD_LED
        #if defined(APP_BTN)
             err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
+            APP_ERROR_CHECK(err_code);
+
+            err_code = app_timer_start(m_app_btn_poweroff_timer_id,BTN1_POWEROFF_INTERVAL2,0);
             APP_ERROR_CHECK(err_code);
        #else
             err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
@@ -2117,6 +2148,7 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
 
            case APP_BUTTON_RELEASE:
            {  
+              btn_poweroff_cnt = false;
               if (pressed_cnt == 1){//bugfix, omit log when poweron button.
                 NRF_LOG_INFO("Button releaed...");
               }
