@@ -95,8 +95,11 @@
 #define SAMPLES_IN_BUFFER 5
 #if defined(BATT_POWEROFF)
 #define VOLT_MAX    0x32B //4.2V
-//#define CUTOFF_VAL  0x27B //3.3V
+#ifdef DEV_TEMP
 #define CUTOFF_VAL  0x0 //temp
+#else
+#define CUTOFF_VAL  0x27B //3.3V
+#endif
 #endif
 
 /* Soft_device use #0 timer for another purpose,
@@ -116,7 +119,7 @@ static int16_t volatile onboard_temperature = 0;
 static bool temp_read_start = false;
 static bool temp_read_done = false;
 #endif
-
+static uint8_t paired_connection = 0;
 
 #define APP_BLE_CONN_CFG_TAG            1                                           /**< A tag identifying the SoftDevice BLE configuration. */
 
@@ -221,7 +224,11 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #define BATTERY_INTERVAL                                          APP_TIMER_TICKS(60000)
 #endif
 #if defined(BATT_POWEROFF)
+#ifdef DEV_TEMP
 #define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(60000)
+#else
+#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*60*60)
+#endif
 #endif
 #define SEND_BATT_INTERVAL  APP_TIMER_TICKS(10000)
 
@@ -1228,7 +1235,8 @@ static uint32_t click_cnt, total_cnt = 0;
 static void send_to_phoneapp_when_tracker_phone(void)
 {
   uint32_t err_code;
-
+  
+  if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: tracker-> search phone ");
       uart_send_data[0] = 0x02;
@@ -1242,6 +1250,7 @@ static void send_to_phoneapp_click_cnt(void)
 {
   uint32_t err_code;
 
+  if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: click count ");
       //uart_send_data[0]=0x30+click_cnt/2;
@@ -1256,6 +1265,7 @@ static void send_to_phoneapp_power_off(void)
 {
   uint32_t err_code;
 
+  if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: power off info. ");
       uart_send_data[0] = 0xBB;
@@ -1268,6 +1278,7 @@ static void send_to_phoneapp_temperature(uint8_t temp)
 {
   uint32_t err_code;
 
+  if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: temperature ");
       uart_send_data[0] = temp;
@@ -1280,10 +1291,12 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
 {
   uint32_t err_code;
   uint8_t batt[2] = {0,0};
-
+  
+  if(!paired_connection) return;
   batt[0] = (uint8_t)((0xFF00 & batt_adc)>>8);
   batt[1] = (uint8_t)((0x00FF & batt_adc)<<8);
 
+  //if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: batt adc ");
       uart_send_data[0] = batt[0];
@@ -1527,6 +1540,7 @@ static void send_to_phoneapp_when_led_off(void)
 {
     uint32_t err_code;
 
+    if(!paired_connection) return;
     if(( pressed_cnt != 0) || (click_cnt > 0 )){ //button pressed.
       uart_send_data[0]=0xEE;
     }else{ //button Not pressed.			
@@ -2025,6 +2039,7 @@ static void send_to_phoneapp_selfcamera(void)
 {
   uint32_t err_code;
 
+  if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
     NRF_LOG_INFO("send to phoneapp: self-camera shutter ");
     uart_send_data[0] = 0x01;
@@ -2600,6 +2615,8 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              ble_conn_state_role(p_evt->conn_handle),
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
+                paired_connection = 1;
+                led1_led2_led3_onoff_500ms_2cnt_paired_connectioned();
             }
             else
             {
@@ -2771,7 +2788,11 @@ int main(void)
 {
     uint32_t err_code;
     int32_t temperature = 0;
+#ifdef DEV_TEMP
+    bool     erase_bonds = true;
+#else
     bool     erase_bonds = false;
+#endif
 
     // Initialize.
     gpio_init();

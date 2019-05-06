@@ -97,12 +97,13 @@
 #undef STATIC_KEY
 #endif
 
-
-
 #define USE_CARD_LED
 
 #define USE_NEW_TRACKER_SEARCH_PHONE
 #define USE_NEW_SELFCAMERA
 
 #define USE_NEW_POWEROFF
+
+#define DEV_TEMP
+#undef DEV_TEMP
 #endif
