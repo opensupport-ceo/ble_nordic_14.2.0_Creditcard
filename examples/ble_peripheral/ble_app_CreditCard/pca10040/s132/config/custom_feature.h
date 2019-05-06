@@ -87,13 +87,17 @@
 
 /* peer manager */
 #define PEER_MNG
-#undef PEER_MNG
+//#undef PEER_MNG
 #if defined(PEER_MNG)
 /* Use static pass-key */
 #define STATIC_KEY
+//#undef STATIC_KEY
+#else
+#define STATIC_KEY
+#undef STATIC_KEY
 #endif
 
-//#define STATIC_KEY
+
 
 #define USE_CARD_LED
 

@@ -134,9 +134,13 @@ static uint32_t tx_char_add(ble_nus_t * p_nus, ble_nus_init_t const * p_nus_init
 
     memset(&cccd_md, 0, sizeof(cccd_md));
 
+#if (0) // #if defined(STATIC_KEY)
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&cccd_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&cccd_md.write_perm);
+#else
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
-
+#endif
     cccd_md.vloc = BLE_GATTS_VLOC_STACK;
 
     memset(&char_md, 0, sizeof(char_md));
@@ -153,9 +157,13 @@ static uint32_t tx_char_add(ble_nus_t * p_nus, ble_nus_init_t const * p_nus_init
 
     memset(&attr_md, 0, sizeof(attr_md));
 
+#if defined(STATIC_KEY)
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&attr_md.write_perm);
+#else
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
+#endif
     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
     attr_md.rd_auth = 0;
     attr_md.wr_auth = 0;
@@ -206,9 +214,13 @@ static uint32_t rx_char_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init
 
     memset(&attr_md, 0, sizeof(attr_md));
 
+#if defined(STATIC_KEY)
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&attr_md.write_perm);
+#else
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
+#endif
     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
     attr_md.rd_auth = 0;
     attr_md.wr_auth = 0;
