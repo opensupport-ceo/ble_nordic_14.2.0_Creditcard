@@ -85,7 +85,7 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="1294" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="1287" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="58" y="1303" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="1293" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="263" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/hal/nrf_saadc.h" selected="0" top="248" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="170" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/timer/app_timer.h" selected="0" top="141" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="285" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/common/ble_conn_state.c" selected="0" top="266" codecName="Default"/>
@@ -93,5 +93,5 @@
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/custom_feature.h" selected="0" top="87" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3711"/>
+ <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3199"/>
 </session>

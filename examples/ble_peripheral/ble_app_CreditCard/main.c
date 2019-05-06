@@ -1329,7 +1329,11 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
       }
     }  
 #endif
+#if (0)
     if ((click_cnt >= 2) && (click_cnt <= 5)){//0xDD
+#else
+    if ((click_cnt >= 2) && (click_cnt <= 5)){
+#endif
       send_to_phoneapp_click_cnt(); 
     }
 
@@ -2149,6 +2153,10 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
            case APP_BUTTON_RELEASE:
            {  
               btn_poweroff_cnt = false;
+              if(!btn_poweroff_cnt){
+                err_code = app_timer_stop(m_app_btn_poweroff_timer_id);
+                APP_ERROR_CHECK(err_code);
+              }
               if (pressed_cnt == 1){//bugfix, omit log when poweron button.
                 NRF_LOG_INFO("Button releaed...");
               }
