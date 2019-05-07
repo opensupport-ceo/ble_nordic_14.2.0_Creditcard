@@ -261,6 +261,13 @@ static bool btn_release = false;
 static bool m_led_timer_f = false;
 #endif
 
+static bool over5sec_f = false;
+static bool over3sec_f = false;
+static bool over1sec_f = false;
+static bool under1sec_f = false;
+
+static void send_to_phoneapp_selfcamera(void);
+
 static pm_peer_id_t m_peer_to_be_deleted = PM_PEER_ID_INVALID;
 static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
@@ -572,7 +579,7 @@ static void gap_params_init(void)
 #define LED321_500MS  4
 #define LED321_1S     5
 #define LEDALL_ONOFF  6
-#define LED123_1S_F   7
+#define LED123_500MS_F   7
 
 #define CONTINUED     0
 static uint8_t alert_led_totalcnt = CONTINUED; //0:continuous
@@ -601,13 +608,13 @@ static void led1_led2_led3_onoff_1s_5cnt_paring_mode(void)
 }
 
 //paring mode
-static void led1_led2_led3_onoff_1s_5cnt_paring_mode_forced(void)
+static void led1_led2_led3_onoff_1s_5cnt_paring_mode_forced(void)//500ms
 {
   uint32_t err_code;
 
-  led_type = LED123_1S_F;
+  led_type = LED123_500MS_F;
   alert_led_totalcnt = 5*LED_STATE;
-  err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+  err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
   APP_ERROR_CHECK(err_code);
 }
 
@@ -742,6 +749,7 @@ static void id_config_set(uint8_t idconfig)
 {
   uint32_t err_code;
 
+  NRF_LOG_INFO("id_config: %d", idconfig);
   switch(idconfig){
     case ID_OFF:
       nrf_gpio_pin_clear(APMATE_ID_CONTROL);
@@ -753,11 +761,23 @@ static void id_config_set(uint8_t idconfig)
 
     case ID_ONOFF:
     {
+#if (1)
+      if(paired_connection){
+        //if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+          nrf_gpio_pin_set(APMATE_ID_CONTROL);
+        //}else{
+        //  nrf_gpio_pin_clear(APMATE_ID_CONTROL);
+        //}
+      }else{
+          nrf_gpio_pin_set(APMATE_ID_CONTROL);
+      }
+#else
       if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
         nrf_gpio_pin_set(APMATE_ID_CONTROL);
       }else{
         nrf_gpio_pin_clear(APMATE_ID_CONTROL);
       }
+#endif
     }
     break;
 
@@ -997,6 +1017,9 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
           {
             NRF_LOG_INFO("Disconnected");
             paired_connection = 0;
+            if(id_config == ID_ONOFF){
+              id_config_set(ID_ONOFF);
+            }
             switch(p_ble_evt->evt.gap_evt.params.disconnected.reason){
               case BLE_HCI_CONNECTION_TIMEOUT:
                 led1_led2_led3_500ms_15cnt_linkloss();
@@ -1372,7 +1395,7 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
   }
 }
 
-static bool btn_poweroff_flag_after_paring_mode = false;
+//static bool btn_poweroff_flag_after_paring_mode = false;
 static bool btn_paring_mode = false;
 static bool btn_double_tracker = false;
 static void app_btn_double_tracker_vars_init(void)
@@ -1386,37 +1409,56 @@ static void app_btn_tracker_timeout_handler(void * p_context)// 1sec timer
   UNUSED_PARAMETER(p_context);
 
   NRF_LOG_INFO("1sec btn timer-> double_cnt: %d, btn_double_tracker: %d", (int)double_cnt, (int)btn_double_tracker);
- 
-  if ((double_cnt == 2) && (btn_double_tracker == true)){
-    if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-      NRF_LOG_INFO("button tracker->search phone...");
-      send_to_phoneapp_when_tracker_phone();
-      led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp();
+  {//tracker
+    if ((double_cnt == 2) && (btn_double_tracker == true)){
+      if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+        NRF_LOG_INFO("button tracker->search phone...");
+        send_to_phoneapp_when_tracker_phone();
+        led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp();
+      }
     }
-  }
   
-  app_btn_double_tracker_vars_init();
+    app_btn_double_tracker_vars_init();
+  }
+
+  {//selfcamera
+    if ((double_cnt == 1) && (btn_double_tracker == true)){
+      if(m_conn_handle != BLE_CONN_HANDLE_INVALID){// When paired only, send selfcamera command.
+        NRF_LOG_INFO("button self-camerea...");
+        send_to_phoneapp_selfcamera();
+      }
+    }
+    app_btn_double_tracker_vars_init();
+  }
 }
 
 static bool btn_poweroff_mode = false;
-static void app_btn_poweroff_timeout_handler(void * p_context) //5sec
+static void app_btn_poweroff_timeout_handler(void * p_context) //5sec timer
 {
     uint32_t err_code;
     UNUSED_PARAMETER(p_context);
 
-    NRF_LOG_INFO("5sec btn timer-> pressed_cnt: %d, btn_poweroff_mode: %d", (int)pressed_cnt, (int)btn_poweroff_mode);
-    if(btn_poweroff_flag_after_paring_mode){
+    NRF_LOG_INFO("5sec btn timer-> pressed_cnt: %d, click_cnt: %d, btn_poweroff_mode: %d", (int)pressed_cnt, (int)click_cnt, (int)btn_poweroff_mode);
+    //if(btn_poweroff_flag_after_paring_mode){
+      //if ((pressed_cnt == 1) && (click_cnt == 1) && (btn_poweroff_mode == true)){
       if ((pressed_cnt == 1) && (btn_poweroff_mode == true)){
           if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
             send_to_phoneapp_power_off();
           }
         
           btn_poweroff_mode = false;
-          btn_poweroff_flag_after_paring_mode = false;
+          //btn_poweroff_flag_after_paring_mode = false;
           NRF_LOG_INFO("button power off...");
           power_off();
       }
-    }
+    //}
+}
+
+static void do_advertising_start_between_3sec_5sec(void)
+{
+  if((over3sec_f == true) && (over5sec_f == false)){//When 3sec < time < 5sec,
+        advertising_start(true);
+  }
 }
 
 static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
@@ -1436,19 +1478,30 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
       }
     }  
 #endif
-    NRF_LOG_INFO("3sec btn timer-> pressed_cnt: %d, btn_poweroff_flag: %d", (int)pressed_cnt, (int)btn_poweroff_flag_after_paring_mode);
-    if((pressed_cnt == 1) && (btn_poweroff_flag_after_paring_mode == false) && (btn_paring_mode == true)) // paring mode
+    NRF_LOG_INFO("3sec btn timer-> pressed_cnt: %d", (int)pressed_cnt);
+    //NRF_LOG_INFO("3sec btn timer-> pressed_cnt: %d, btn_poweroff_flag: %d", (int)pressed_cnt, (int)btn_poweroff_flag_after_paring_mode);
+    //if((pressed_cnt == 1) && (btn_poweroff_flag_after_paring_mode == false) && (btn_paring_mode == true)) // paring mode
+    if((pressed_cnt == 1) && (click_cnt == 1) && (btn_paring_mode == true)) // paring mode
     {
       NRF_LOG_INFO("button paring mode...");
-      btn_poweroff_flag_after_paring_mode = true;
+      //btn_poweroff_flag_after_paring_mode = true;
       btn_paring_mode = false;
       //led1_led2_led3_onoff_1s_5cnt_paring_mode();
       led1_led2_led3_onoff_1s_5cnt_paring_mode_forced();
-      advertising_start(true);
+#if (0)
+      //do_advertising_start_between_3sec_5sec();
+      if((over3sec_f == true) && (over5sec_f == false)){//When 3sec < time < 5sec,
+        advertising_start(true);
+      else{
+      }
+#endif
       app_button_init_click_cnt();
       return;
     }
-    
+ 
+#if (0)//Not defined!
+
+#else
     if((click_cnt >= 2)) //click counter
     {
   #if (0)
@@ -1461,6 +1514,7 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
       app_button_init_click_cnt();
       return;
     }
+#endif
      return;
 
 #if !defined(BTN_PWR_ON)
@@ -1685,7 +1739,7 @@ static void led_timer_alert_handler(void * p_context)
   UNUSED_PARAMETER(p_context);
   uint32_t err_code;
   
-  if(led_type == LED123_1S_F){//2
+  if(led_type == LED123_500MS_F){//2
       switch (change_led_stat%3){
           case 0:
               nrf_gpio_pin_set(APMATE_LED_1);
@@ -1709,7 +1763,7 @@ static void led_timer_alert_handler(void * p_context)
       }
 
       if ( change_led_stat < alert_led_totalcnt){
-          err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+          err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
           APP_ERROR_CHECK(err_code);
           change_led_stat++;
       }else{
@@ -2171,6 +2225,13 @@ void timer_init(void)
 #define MSEC100 100
 #define MSEC10  10
 
+static void app_button_init_time_flag_vars(void)
+{
+  over5sec_f = false;
+  over3sec_f = false;
+  over1sec_f = false;
+  under1sec_f = false;
+}
 static void app_button_init_click_cnt(void)
 {
   click_cnt = 0;
@@ -2185,6 +2246,7 @@ static void app_button_init_time_variable(void)
   pressed_duration = 0;
   released_time = 0;
   pressed_time = 0;
+  app_button_init_time_flag_vars();
 }
 
 static void send_to_phoneapp_selfcamera(void)
@@ -2201,6 +2263,7 @@ static void send_to_phoneapp_selfcamera(void)
     err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }
 }
+
 static void app_button_event_generator(void)
 {
   pressed_duration = released_time - pressed_time;
@@ -2209,6 +2272,7 @@ static void app_button_event_generator(void)
     {
       if(pressed_duration >= SEC5){// btn poweroff.
         NRF_LOG_INFO("Over 5 secs, pressed...");
+        over5sec_f = true;
 
 #ifndef USE_NEW_POWEROFF
         if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
@@ -2222,6 +2286,8 @@ static void app_button_event_generator(void)
       }else if(pressed_duration >= SEC3){// go into pairing mode.
         NRF_LOG_INFO("Over 3 secs, pressed...");
         {
+          over3sec_f = true;
+          //led1_led2_led3_onoff_1s_5cnt_paring_mode_forced();
 #if (0)
         //if(paired_connection){
           NRF_LOG_INFO("button paring mode...");
@@ -2233,6 +2299,7 @@ static void app_button_event_generator(void)
         }
       }else if(pressed_duration >= SEC1){// tracker->search phone.
         NRF_LOG_INFO("Over 1 secs, pressed...");
+        over1sec_f = true;
 #if defined(USE_NEW_TRACKER_SEARCH_PHONE)
     #if (0)
         if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
@@ -2267,17 +2334,20 @@ static void app_button_event_generator(void)
 #else //#if (0)
       else {// // Self-camera.
         NRF_LOG_INFO("Under 1 secs, pressed...");
+        under1sec_f = true;
+#if (0)
 #ifdef USE_NEW_SELFCAMERA        
         if(m_conn_handle != BLE_CONN_HANDLE_INVALID){// When paired only, send selfcamera command.
           NRF_LOG_INFO("button self-camerea...");
           send_to_phoneapp_selfcamera();
         }
 #endif
+#endif
       }
 #endif//#if (0)
     }
   }
-
+  do_advertising_start_between_3sec_5sec();
   app_button_init_time_variable();
   app_button_init_pressed_cnt();
 
@@ -2310,12 +2380,12 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);//3sec-click count&paring mode
             APP_ERROR_CHECK(err_code);
             
-            if (btn_poweroff_flag_after_paring_mode){
+            //if (btn_poweroff_flag_after_paring_mode){
               err_code = app_timer_start(m_app_btn_poweroff_timer_id,BTN1_POWEROFF_INTERVAL2,0);//5sec-poweroff
               APP_ERROR_CHECK(err_code);
-            }
+            //}
 
-            err_code = app_timer_start(m_app_btn_double_timer_id,BTN1_DOUBLE_INTERVAL,0);//1sec-tracker
+            err_code = app_timer_start(m_app_btn_double_timer_id,BTN1_DOUBLE_INTERVAL,0);//1sec-tracker&self-camera
             APP_ERROR_CHECK(err_code);
        #else
             err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
@@ -2819,6 +2889,9 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
                 paired_connection = 1;
+                if(id_config == ID_ONOFF){
+                  id_config_set(ID_ONOFF);
+                }
                 led1_led2_led3_onoff_500ms_2cnt_paired_connectioned();
             }
             else
