@@ -61,6 +61,10 @@ extern "C" {
 #define BLE_HCI_STATUS_CODE_PIN_OR_KEY_MISSING             0x06   /**< Pin or Key missing. */
 #define BLE_HCI_MEMORY_CAPACITY_EXCEEDED                   0x07   /**< Memory Capacity Exceeded. */
 #define BLE_HCI_CONNECTION_TIMEOUT                         0x08   /**< Connection Timeout. */
+/* APMATE: When link loss,
+** Jaehong Park, Jaehong1972@gmail.com
+*/
+
 /*0x09 Connection Limit Exceeded
 0x0A Synchronous Connection Limit To A Device Exceeded
 0x0B ACL Connection Already Exists*/

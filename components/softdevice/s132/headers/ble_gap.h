@@ -802,6 +802,9 @@ typedef struct
                                                      with either @ref BLE_GAP_AUTH_KEY_TYPE_NONE if there is no match or
                                                      @ref BLE_GAP_AUTH_KEY_TYPE_PASSKEY if there is a match. */
 } ble_gap_evt_passkey_display_t;
+/* APMATE: When passkey,
+** Jaehong Park, Jaehong1972@gmail.com
+*/
 
 /**@brief Event structure for @ref BLE_GAP_EVT_KEY_PRESSED. */
 typedef struct
@@ -1008,7 +1011,9 @@ typedef struct
     ble_gap_evt_data_length_update_t          data_length_update;           /**< Data Length Update Event Parameters. */
   } params;                                                                 /**< Event Parameters. */
 } ble_gap_evt_t;
-
+/* APMATE: When link loss,
+** Jaehong Park, Jaehong1972@gmail.com
+*/
 
 /**
  * @brief BLE GAP connection configuration parameters, set with @ref sd_ble_cfg_set.

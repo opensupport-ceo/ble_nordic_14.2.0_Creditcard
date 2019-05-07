@@ -85,8 +85,12 @@ typedef uint16_t pm_sec_error_code_t;
 //lint -emacro(516,PM_LOCAL_DB_LEN_OVERHEAD_BYTES)
 
 #define PM_PEER_ID_INVALID              0xFFFF                                         /**< @brief Invalid value for @ref pm_peer_id_t. */
-#define PM_STORE_TOKEN_INVALID          0                                              /**< @brief Invalid value for store token. */
-#define PM_PEER_ID_N_AVAILABLE_IDS      256                                            /**< @brief The number of available peer IDs. */
+#define PM_STORE_TOKEN_INVALID          0                                            /**< @brief Invalid value for store token. */
+/* APMATE
+** Jaehong Park, Jaehong1972@gmail.com
+** Number of peers
+*/ 
+#define PM_PEER_ID_N_AVAILABLE_IDS      256                                           /**< @brief The number of available peer IDs. */
 #define PM_LOCAL_DB_LEN_OVERHEAD_BYTES  offsetof(pm_peer_data_local_gatt_db_t, data)   /**< @brief The static-length part of the local GATT data struct. */
 
 
