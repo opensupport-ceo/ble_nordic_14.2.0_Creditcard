@@ -572,6 +572,7 @@ static void gap_params_init(void)
 #define LED321_500MS  4
 #define LED321_1S     5
 #define LEDALL_ONOFF  6
+#define LED123_1S_F   7
 
 #define CONTINUED     0
 static uint8_t alert_led_totalcnt = CONTINUED; //0:continuous
@@ -594,6 +595,17 @@ static void led1_led2_led3_onoff_1s_5cnt_paring_mode(void)
   uint32_t err_code;
 
   led_type = LED123_1S;
+  alert_led_totalcnt = 5*LED_STATE;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//paring mode
+static void led1_led2_led3_onoff_1s_5cnt_paring_mode_forced(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_1S_F;
   alert_led_totalcnt = 5*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
   APP_ERROR_CHECK(err_code);
@@ -1360,6 +1372,8 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
   }
 }
 
+static bool btn_poweroff_flag_after_paring_mode = false;
+static bool btn_paring_mode = false;
 static bool btn_double_tracker = false;
 static void app_btn_double_tracker_vars_init(void)
 {
@@ -1372,7 +1386,7 @@ static void app_btn_tracker_timeout_handler(void * p_context)// 1sec timer
   UNUSED_PARAMETER(p_context);
 
   NRF_LOG_INFO("1sec btn timer-> double_cnt: %d, btn_double_tracker: %d", (int)double_cnt, (int)btn_double_tracker);
-
+ 
   if ((double_cnt == 2) && (btn_double_tracker == true)){
     if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("button tracker->search phone...");
@@ -1380,25 +1394,28 @@ static void app_btn_tracker_timeout_handler(void * p_context)// 1sec timer
       led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp();
     }
   }
+  
   app_btn_double_tracker_vars_init();
 }
 
-static bool btn_poweroff_cnt = false;
-static void app_btn_poweroff_timeout_handler(void * p_context)
+static bool btn_poweroff_mode = false;
+static void app_btn_poweroff_timeout_handler(void * p_context) //5sec
 {
     uint32_t err_code;
     UNUSED_PARAMETER(p_context);
 
-    NRF_LOG_INFO("5sec btn timer-> pressed_cnt: %d, btn_poweroff_cnt: %d", (int)pressed_cnt, (int)btn_poweroff_cnt);
-
-    if ((pressed_cnt == 1) && (btn_poweroff_cnt == true)){
-        if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-          send_to_phoneapp_power_off();
-        }
+    NRF_LOG_INFO("5sec btn timer-> pressed_cnt: %d, btn_poweroff_mode: %d", (int)pressed_cnt, (int)btn_poweroff_mode);
+    if(btn_poweroff_flag_after_paring_mode){
+      if ((pressed_cnt == 1) && (btn_poweroff_mode == true)){
+          if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
+            send_to_phoneapp_power_off();
+          }
         
-        btn_poweroff_cnt = false;
-        NRF_LOG_INFO("button power off...");
-        power_off();
+          btn_poweroff_mode = false;
+          btn_poweroff_flag_after_paring_mode = false;
+          NRF_LOG_INFO("button power off...");
+          power_off();
+      }
     }
 }
 
@@ -1407,7 +1424,7 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
     uint32_t err_code;
     UNUSED_PARAMETER(p_context);
   
-    NRF_LOG_INFO("3sec btn timer-> click_cnt: %d, would be initialized.", (int)click_cnt);
+    NRF_LOG_INFO("3sec btn timer-> click_cnt: %d, btn_paring_mode: %d", (int)click_cnt, (int)btn_paring_mode);
 
 #ifdef USE_NEW_TRACKER_SEARCH_PHONE
 #else
@@ -1419,17 +1436,32 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
       }
     }  
 #endif
-#if (0)
-    if ((click_cnt >= 2) && (click_cnt <= 5)){//0xDD
-#else
-    if ((click_cnt >= 2) && (click_cnt <= 5)){
-#endif
-      send_to_phoneapp_click_cnt(); 
+    NRF_LOG_INFO("3sec btn timer-> pressed_cnt: %d, btn_poweroff_flag: %d", (int)pressed_cnt, (int)btn_poweroff_flag_after_paring_mode);
+    if((pressed_cnt == 1) && (btn_poweroff_flag_after_paring_mode == false) && (btn_paring_mode == true)) // paring mode
+    {
+      NRF_LOG_INFO("button paring mode...");
+      btn_poweroff_flag_after_paring_mode = true;
+      btn_paring_mode = false;
+      //led1_led2_led3_onoff_1s_5cnt_paring_mode();
+      led1_led2_led3_onoff_1s_5cnt_paring_mode_forced();
+      advertising_start(true);
+      app_button_init_click_cnt();
+      return;
     }
-
-    app_button_init_click_cnt();
-
-    return;
+    
+    if((click_cnt >= 2)) //click counter
+    {
+  #if (0)
+      if ((click_cnt >= 2) && (click_cnt <= 5)){//0xDD
+  #else
+      if ((click_cnt >= 2) && (click_cnt <= 5)){
+  #endif
+        send_to_phoneapp_click_cnt(); 
+      }
+      app_button_init_click_cnt();
+      return;
+    }
+     return;
 
 #if !defined(BTN_PWR_ON)
     //Do anything.
@@ -1652,6 +1684,42 @@ static void led_timer_alert_handler(void * p_context)
 {
   UNUSED_PARAMETER(p_context);
   uint32_t err_code;
+  
+  if(led_type == LED123_1S_F){//2
+      switch (change_led_stat%3){
+          case 0:
+              nrf_gpio_pin_set(APMATE_LED_1);
+              nrf_gpio_pin_clear(APMATE_LED_2);
+              nrf_gpio_pin_clear(APMATE_LED_3);
+          
+              break;
+          case 1:
+              nrf_gpio_pin_clear(APMATE_LED_1);
+              nrf_gpio_pin_set(APMATE_LED_2);
+              nrf_gpio_pin_clear(APMATE_LED_3);
+              break;
+          case 2:
+              nrf_gpio_pin_clear(APMATE_LED_1);
+              nrf_gpio_pin_clear(APMATE_LED_2);
+              nrf_gpio_pin_set(APMATE_LED_3);
+              break;
+
+          default:
+              break;
+      }
+
+      if ( change_led_stat < alert_led_totalcnt){
+          err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
+          APP_ERROR_CHECK(err_code);
+          change_led_stat++;
+      }else{
+          change_led_stat = INIT_CNT;
+          send_to_phoneapp_when_led_off();
+          led_all_clear();
+      }
+
+      return;
+  }
 
   if(( pressed_cnt != 0) || (click_cnt > 0 ))
   {
@@ -1720,11 +1788,11 @@ static void led_timer_alert_handler(void * p_context)
         }
 
         if (led_alert_stop == false){
-          change_led_stat++;
           if (alert_led_totalcnt == CONTINUED){ // repeatedly.
             err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
             APP_ERROR_CHECK(err_code);
           }
+          change_led_stat++;
         }else{
           change_led_stat = INIT_CNT;
           led_all_clear();
@@ -1752,10 +1820,10 @@ static void led_timer_alert_handler(void * p_context)
                 break;
         }
 
-        change_led_stat++;
         if ( change_led_stat < alert_led_totalcnt){
             err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
             APP_ERROR_CHECK(err_code);
+            change_led_stat++;
         }else{
             change_led_stat = INIT_CNT;
             send_to_phoneapp_when_led_off();
@@ -1784,10 +1852,10 @@ static void led_timer_alert_handler(void * p_context)
                 break;
         }
 
-        change_led_stat++;
         if ( change_led_stat < alert_led_totalcnt){
             err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
             APP_ERROR_CHECK(err_code);
+            change_led_stat++;
         }else{
             change_led_stat = INIT_CNT;
             send_to_phoneapp_when_led_off();
@@ -1817,10 +1885,10 @@ static void led_timer_alert_handler(void * p_context)
                 break;
         }
 
-        change_led_stat++;
         if ( change_led_stat < alert_led_totalcnt){
             err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
             APP_ERROR_CHECK(err_code);
+            change_led_stat++;
         }else{
             change_led_stat = INIT_CNT;
             send_to_phoneapp_when_led_off();
@@ -1850,10 +1918,10 @@ static void led_timer_alert_handler(void * p_context)
                 break;
         }
 
-        change_led_stat++;
         if ( change_led_stat < alert_led_totalcnt){
             err_code = app_timer_start(m_led_timer_id,LED_INT_1SEC,0);
             APP_ERROR_CHECK(err_code);
+            change_led_stat++;
         }else{
             change_led_stat = INIT_CNT;
             send_to_phoneapp_when_led_off();
@@ -2154,11 +2222,14 @@ static void app_button_event_generator(void)
       }else if(pressed_duration >= SEC3){// go into pairing mode.
         NRF_LOG_INFO("Over 3 secs, pressed...");
         {
+#if (0)
         //if(paired_connection){
           NRF_LOG_INFO("button paring mode...");
+          btn_poweroff_flag_after_paring_mode = true;
           led1_led2_led3_onoff_1s_5cnt_paring_mode();
           advertising_start(true);
         //}
+#endif
         }
       }else if(pressed_duration >= SEC1){// tracker->search phone.
         NRF_LOG_INFO("Over 1 secs, pressed...");
@@ -2228,20 +2299,23 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             pressed_time = app_timer_cnt_get()*1000/32768;//milli-sec
             pressed_cnt++;
             click_cnt++; // 3sec timer purpose.
-            btn_poweroff_cnt = true;
+            btn_poweroff_mode = true;
             btn_double_tracker = true;
             double_cnt++;// 1sec timer purpose.
+            btn_paring_mode = true;
             NRF_LOG_INFO("pressed_time: %d, pressed_cnt: %d, click_cnt: %d, double_cnt: %d", (int)pressed_time, (int)pressed_cnt, (int)click_cnt, (int)double_cnt);
 
 #ifdef USE_CARD_LED
        #if defined(APP_BTN)
-            err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);//3sec
+            err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);//3sec-click count&paring mode
             APP_ERROR_CHECK(err_code);
+            
+            if (btn_poweroff_flag_after_paring_mode){
+              err_code = app_timer_start(m_app_btn_poweroff_timer_id,BTN1_POWEROFF_INTERVAL2,0);//5sec-poweroff
+              APP_ERROR_CHECK(err_code);
+            }
 
-            err_code = app_timer_start(m_app_btn_poweroff_timer_id,BTN1_POWEROFF_INTERVAL2,0);//5sec
-            APP_ERROR_CHECK(err_code);
-
-            err_code = app_timer_start(m_app_btn_double_timer_id,BTN1_DOUBLE_INTERVAL,0);//1sec
+            err_code = app_timer_start(m_app_btn_double_timer_id,BTN1_DOUBLE_INTERVAL,0);//1sec-tracker
             APP_ERROR_CHECK(err_code);
        #else
             err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
@@ -2266,11 +2340,19 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
 
            case APP_BUTTON_RELEASE:
            {  
-              btn_poweroff_cnt = false;
-              if(!btn_poweroff_cnt){
+              btn_poweroff_mode = false;
+              if(!btn_poweroff_mode){
                 err_code = app_timer_stop(m_app_btn_poweroff_timer_id);
                 APP_ERROR_CHECK(err_code);
               }
+
+              btn_paring_mode = false;
+          #if (0)
+              if(!btn_paring_mode){
+                err_code = app_timer_stop(m_app_btn_poweroff_timer_id);
+                APP_ERROR_CHECK(err_code);
+              }
+          #endif
               if (pressed_cnt == 1){//bugfix, omit log when poweron button.
                 NRF_LOG_INFO("Button releaed...");
               }

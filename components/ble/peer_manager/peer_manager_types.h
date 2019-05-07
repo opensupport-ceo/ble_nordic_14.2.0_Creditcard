@@ -90,7 +90,11 @@ typedef uint16_t pm_sec_error_code_t;
 ** Jaehong Park, Jaehong1972@gmail.com
 ** Number of peers
 */ 
+#if (0)
+#define PM_PEER_ID_N_AVAILABLE_IDS      1                                           /**< @brief The number of available peer IDs. */
+#else
 #define PM_PEER_ID_N_AVAILABLE_IDS      256                                           /**< @brief The number of available peer IDs. */
+#endif
 #define PM_LOCAL_DB_LEN_OVERHEAD_BYTES  offsetof(pm_peer_data_local_gatt_db_t, data)   /**< @brief The static-length part of the local GATT data struct. */
 
 
