@@ -774,7 +774,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
         NRF_LOG_INFO("Rx hex-string: %d %d %d",p_evt->params.rx_data.p_data[0],p_evt->params.rx_data.p_data[1],p_evt->params.rx_data.p_data[2]);
-        if ((p_evt->params.rx_data.p_data[0] == 0xCC) && (p_evt->params.rx_data.p_data[2] == 0xB4)){
+        if ((p_evt->params.rx_data.p_data[0] == 0xCC) && (p_evt->params.rx_data.p_data[1] == 0xB4)){
           switch(p_evt->params.rx_data.p_data[2]){
             case 0xDD: 
             #ifdef USE_CARD_LED
@@ -799,7 +799,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
               break;
           }
         }
-        if ((p_evt->params.rx_data.p_data[0] == 0xCC) && (p_evt->params.rx_data.p_data[2] == 0xB3)){
+        if ((p_evt->params.rx_data.p_data[0] == 0xCC) && (p_evt->params.rx_data.p_data[1] == 0xB3)){
           switch(p_evt->params.rx_data.p_data[2]){
   #if (1) //ID config
             case 0x01: //ID off
@@ -1296,8 +1296,8 @@ static void send_to_phoneapp_when_tracker_phone(void)
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: tracker-> search phone ");
       uart_send_data[0] = 0xCC;
-      uart_send_data[0] = 0xB5;
-      uart_send_data[0] = 0x02;
+      uart_send_data[1] = 0xB5;
+      uart_send_data[2] = 0x02;
       uint16_t length = 3;
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
       //app_button_init_click_cnt();
@@ -1313,8 +1313,8 @@ static void send_to_phoneapp_click_cnt(void)
       NRF_LOG_INFO("send to phoneapp: click count ");
       //uart_send_data[0]=0x30+click_cnt/2;
       uart_send_data[0] = 0xCC;
-      uart_send_data[0] = 0xB5;
-      uart_send_data[0] = 0xDD;
+      uart_send_data[1] = 0xB5;
+      uart_send_data[2] = 0xDD;
       uint16_t length = 3;
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
       //app_button_init_click_cnt();
@@ -1329,8 +1329,8 @@ static void send_to_phoneapp_power_off(void)
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: power off info. ");
       uart_send_data[0] = 0xCC;
-      uart_send_data[0] = 0xB5;
-      uart_send_data[0] = 0xBB;
+      uart_send_data[1] = 0xB5;
+      uart_send_data[2] = 0xBB;
       uint16_t length = 3;
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }
@@ -1344,8 +1344,8 @@ static void send_to_phoneapp_temperature(uint8_t temp)
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
       NRF_LOG_INFO("send to phoneapp: temperature ");
       uart_send_data[0] = 0xCC;
-      uart_send_data[0] = 0xB7;
-      uart_send_data[0] = temp;
+      uart_send_data[1] = 0xB7;
+      uart_send_data[2] = temp;
       uint16_t length = 3;
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }
@@ -1365,8 +1365,8 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
       NRF_LOG_INFO("send to phoneapp: batt adc ");
       uart_send_data[0] = 0xCC;
       uart_send_data[1] = 0xB6;
-      uart_send_data[0] = batt[0];
-      uart_send_data[1] = batt[1];
+      uart_send_data[2] = batt[0];
+      uart_send_data[3] = batt[1];
       uint16_t length = 4;
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }
@@ -1651,11 +1651,11 @@ static void send_to_phoneapp_when_led_off(void)
 
     if(!paired_connection) return;
     uart_send_data[0]=0xCC;
-    uart_send_data[0]=0xB5;
+    uart_send_data[1]=0xB5;
     if(( pressed_cnt != 0) || (click_cnt > 0 )){ //button pressed.
-      uart_send_data[3]=0xEE;
+      uart_send_data[2]=0xEE;
     }else{ //button Not pressed.			
-      uart_send_data[3]=0xFF;
+      uart_send_data[2]=0xFF;
     }
     if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
         NRF_LOG_INFO("send to phoneapp: led off info. ");
@@ -2195,8 +2195,8 @@ static void send_to_phoneapp_selfcamera(void)
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
     NRF_LOG_INFO("send to phoneapp: self-camera shutter ");
     uart_send_data[0] = 0xCC;
-    uart_send_data[0] = 0xB5;
-    uart_send_data[0] = 0x01;
+    uart_send_data[1] = 0xB5;
+    uart_send_data[2] = 0x01;
     uint16_t length = 3;
     err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }

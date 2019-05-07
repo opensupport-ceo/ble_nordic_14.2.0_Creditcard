@@ -90,9 +90,9 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="18" y="2990" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2982" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="19" y="607" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" selected="0" top="590" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="14" y="2995" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2982" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="607" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" selected="0" top="590" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName="Default"/>
  </Files>
  <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="D:/_____nRF5_SDK_14.2.0_APMATE/examples/ble_peripheral/ble_app_R11_tracker-2019-05-06/main.c&#xa;" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>
