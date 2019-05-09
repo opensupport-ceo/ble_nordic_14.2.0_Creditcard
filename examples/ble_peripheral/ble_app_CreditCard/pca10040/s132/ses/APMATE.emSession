@@ -10,9 +10,9 @@
   <BreakpointListItem trigger="" line="85" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/libraries/util/app_error_weak.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="93" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/libraries/util/app_error_weak.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="54" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="1559" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="1552" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="1689" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="1734" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="1718" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="608" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" useHWbreakpoint="false"/>
   <Exceptions set="MemManage;UsageFault_Coprocessor;UsageFault_CheckingError;UsageFault_StateError;BusFault;ExceptionEntryReturnFault;HardFault"/>
  </Breakpoints>
@@ -76,9 +76,9 @@
    <Watchpoint expression="id" name="id" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
    <Watchpoint expression="pc" name="pc" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
    <Watchpoint expression="info" name="info" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
-   <Watchpoint expression="err_code" name="err_code" radix="16" linenumber="1256" filename="../../../main.c"/>
-   <Watchpoint expression="tmp_batt_adc" name="tmp_batt_adc" radix="16" linenumber="381" filename="../../../main.c"/>
-   <Watchpoint expression="led_type" name="led_type" radix="-1" linenumber="1780" filename="../../../main.c"/>
+   <Watchpoint expression="err_code" name="err_code" radix="16" linenumber="1249" filename="../../../main.c"/>
+   <Watchpoint expression="tmp_batt_adc" name="tmp_batt_adc" radix="16" linenumber="382" filename="../../../main.c"/>
+   <Watchpoint expression="led_type" name="led_type" radix="-1" linenumber="1764" filename="../../../main.c"/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -91,7 +91,7 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="1" y="3064" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="3056" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="47" y="2325" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2316" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="793" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../ble_app_R11_tracker-2019-05-07-7th/main.c" selected="0" top="775" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="377" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.c" selected="0" top="330" codecName="Default"/>

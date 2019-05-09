@@ -98,7 +98,7 @@
 #ifdef DEV_TEMP
 #define CUTOFF_VAL  0x0 //temp
 #else
-#define CUTOFF_VAL  0x27B //3.3V
+#define CUTOFF_VAL  0x281 //3.3V
 #endif
 #endif
 
@@ -213,6 +213,7 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #endif
 #if defined(USE_CARD_LED)
 #define LED_INTERVAL0                                             APP_TIMER_TICKS(100)
+#define LED_INT_250MS     APP_TIMER_TICKS(250)
 #define LED_INT_500MS     APP_TIMER_TICKS(500)
 #define LED_INT_1SEC      APP_TIMER_TICKS(1000)
 #else
@@ -229,7 +230,8 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #ifdef DEV_TEMP
 #define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(60000)
 #else
-#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*60*60)
+#define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(10000)
+#define BATTERY_READ_START_INTERVAL                              APP_TIMER_TICKS(1000*60*60)
 #endif
 #endif
 #define SEND_BATT_INTERVAL  APP_TIMER_TICKS(10000)
@@ -465,8 +467,8 @@ static int32_t read_temperature(void)
 #endif//#if defined(TEMP_ONBOARD_ADC)
 
 #if defined(BATT_ADC)
+static nrf_saadc_value_t saved_batt_adc = 0;
 static void send_to_phoneapp_batt(int16_t batt_adc);
-
 void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 {
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
@@ -491,9 +493,11 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 
         //batt_adc = p_event->data.done.p_buffer[0];
         tmp_batt_adc = tmp_adc_sum/SAMPLES_IN_BUFFER;
+        
 #if defined(BATT_POWEROFF)
-        if(check_batt_adc){
+        if(check_batt_adc){//BATTERY_READ_START_INTERVAL
           NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
+          saved_batt_adc = tmp_batt_adc;
         }
 #else
         NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
@@ -502,12 +506,14 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
 #ifdef BATT_POWEROFF
         if(check_batt_adc){
           //send_to_phoneapp_batt(tmp_batt_adc);
-
+          check_batt_adc = false;
           if(tmp_batt_adc <= CUTOFF_VAL){ // When under 3.3V.
               //nrf_gpio_pin_clear(APMATE_BAT_V);
               //nrf_gpio_pin_clear(APMATE_P_CTL);
               NRF_LOG_INFO("Batt adc under 3.3V...");
+        #if (1)//Jaehong
               power_off();
+        #endif
           }else{
             NRF_LOG_INFO("Batt ADC read-check stop...");
             check_batt_adc = false;
@@ -580,6 +586,7 @@ static void gap_params_init(void)
 #define LED321_1S     5
 #define LEDALL_ONOFF  6
 #define LED123_500MS_F   7
+#define LED123_250MS  8
 
 #define CONTINUED     0
 static uint8_t alert_led_totalcnt = CONTINUED; //0:continuous
@@ -661,6 +668,17 @@ static void led1_led2_led3_onoff_500ms_15cnt_phoneapp_to_tracker(void)
   led_type = LED123_500MS;
   alert_led_totalcnt = 15*LED_STATE;
   err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+  APP_ERROR_CHECK(err_code);
+}
+
+//phonepp -> tracker
+static void led1_led2_led3_onoff_250ms_15cnt_phoneapp_to_tracker(void)
+{
+  uint32_t err_code;
+
+  led_type = LED123_250MS;
+  alert_led_totalcnt = 15*LED_STATE;
+  err_code = app_timer_start(m_led_timer_id,LED_INT_250MS,0);
   APP_ERROR_CHECK(err_code);
 }
 
@@ -769,7 +787,7 @@ static void id_config_set(uint8_t idconfig)
         //  nrf_gpio_pin_clear(APMATE_ID_CONTROL);
         //}
       }else{
-          nrf_gpio_pin_set(APMATE_ID_CONTROL);
+          nrf_gpio_pin_clear(APMATE_ID_CONTROL);
       }
 #else
       if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
@@ -793,19 +811,24 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if (p_evt->type == BLE_NUS_EVT_RX_DATA)
     {
         uint32_t err_code;
-        NRF_LOG_INFO("Rx hex-string: %d %d %d",p_evt->params.rx_data.p_data[0],p_evt->params.rx_data.p_data[1],p_evt->params.rx_data.p_data[2]);
+        NRF_LOG_INFO("Rx hex-string: %x %x %x",p_evt->params.rx_data.p_data[0],p_evt->params.rx_data.p_data[1],p_evt->params.rx_data.p_data[2]);
         if ((p_evt->params.rx_data.p_data[0] == 0xCC) && (p_evt->params.rx_data.p_data[1] == 0xB4)){
           switch(p_evt->params.rx_data.p_data[2]){
-            case 0xDD: 
+            case 0xDD: //
+        #if (1)
+              led_alert_stop = false;
+              led1_led2_led3_onoff_250ms_15cnt_phoneapp_to_tracker();
+        #else    
             #ifdef USE_CARD_LED
               led1_led2_led3_onoff_500ms_repeatedly();
             #else
               led_alert_start();//LED start on and off.
             #endif
+        #endif
               break;
             case 0xBB: //LED stop.
             #ifdef USE_CARD_LED
-              led_alert_stop = true;
+                led_alert_stop = true;
             #else
               alert_cnt = 100;
             #endif
@@ -815,7 +838,8 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
               break;
 
             case 0xCC: //phoneapp -> tracker
-              led1_led2_led3_onoff_500ms_15cnt_phoneapp_to_tracker();
+              led_alert_stop = false;
+              led1_led2_led3_onoff_250ms_15cnt_phoneapp_to_tracker();
               break;
           }
         }
@@ -1365,11 +1389,12 @@ static void send_to_phoneapp_temperature(uint8_t temp)
 
   if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-      NRF_LOG_INFO("send to phoneapp: temperature ");
+      NRF_LOG_INFO("send to phoneapp: temperature: %d", temp);
       uart_send_data[0] = 0xCC;
       uart_send_data[1] = 0xB7;
       uart_send_data[2] = temp;
       uint16_t length = 3;
+
       err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
   }
 }
@@ -1385,7 +1410,7 @@ static void send_to_phoneapp_batt(int16_t batt_adc)
 
   //if(!paired_connection) return;
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-      NRF_LOG_INFO("send to phoneapp: batt adc ");
+      NRF_LOG_INFO("send to phoneapp: batt adc: %x %x", batt[0], batt[1]);
       uart_send_data[0] = 0xCC;
       uart_send_data[1] = 0xB6;
       uart_send_data[2] = batt[0];
@@ -1414,11 +1439,13 @@ static void app_btn_tracker_timeout_handler(void * p_context)// 1sec timer
       if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
         NRF_LOG_INFO("button tracker->search phone...");
         send_to_phoneapp_when_tracker_phone();
+    #if (0)
         led3_led2_led1_onoff_1s_15cnt_tracker_to_phoneapp();
+    #endif
       }
     }
   
-    app_btn_double_tracker_vars_init();
+    //app_btn_double_tracker_vars_init();
   }
 
   {//selfcamera
@@ -1428,8 +1455,10 @@ static void app_btn_tracker_timeout_handler(void * p_context)// 1sec timer
         send_to_phoneapp_selfcamera();
       }
     }
-    app_btn_double_tracker_vars_init();
+    //app_btn_double_tracker_vars_init();
   }
+
+  app_btn_double_tracker_vars_init();
 }
 
 static bool btn_poweroff_mode = false;
@@ -1578,7 +1607,7 @@ static void btn_power_on_timeout_handler(void * p_context)
 #endif
 
 #if defined(BATT_POWEROFF)
-      err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
+      err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL_FIRST,0);
       APP_ERROR_CHECK(err_code);
 #endif
 #if defined(WAKEUP_NOPAIRED)
@@ -1649,7 +1678,7 @@ static void btn_power_on_timeout_handler(void * p_context)
 #endif//#if defined(BTN_PWR_ON)
 
 #if defined(BATT_POWEROFF)
-static void batt_power_off_timeout_handler(void * p_context)
+static void batt_power_off_timeout_handler(void * p_context)//BATTERY_READ_START_INTERVAL
 {
   NRF_LOG_INFO("Batt ADC read-check starts...");
   nrf_gpio_pin_set(APMATE_BAT_V);
@@ -1658,12 +1687,12 @@ static void batt_power_off_timeout_handler(void * p_context)
 }
 #endif
 
-static void battery_send_timeout_handler(void * p_context)
+static void battery_send_timeout_handler(void * p_context)//10sec timer
 {
   uint32_t err_code;
 
-  if(onboard_temperature != 0){
-    send_to_phoneapp_batt(onboard_temperature);
+  if(saved_batt_adc != 0){
+    send_to_phoneapp_batt(saved_batt_adc);
   }
 
   if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
@@ -1775,7 +1804,9 @@ static void led_timer_alert_handler(void * p_context)
       return;
   }
 
-  if(( pressed_cnt != 0) || (click_cnt > 0 ))
+  NRF_LOG_INFO("presssed_cnt: %d, click_cnt: %d", pressed_cnt, click_cnt);
+  //if(( pressed_cnt != 0) || (click_cnt > 0 ))
+  if(( pressed_cnt != 0))
   {
     change_led_stat = INIT_CNT;
     alert_led_totalcnt = 0;
@@ -1788,7 +1819,7 @@ static void led_timer_alert_handler(void * p_context)
     send_to_phoneapp_when_led_off();
 
   }
-  else //When pressed_cnt > 0
+  else //When pressed_cnt == 0
   {
       if(led_type == LEDALL_ONOFF){//5
         switch (change_led_stat%2){
@@ -1817,6 +1848,7 @@ static void led_timer_alert_handler(void * p_context)
         }else{
           change_led_stat = INIT_CNT;
           led_all_clear();
+          led_alert_stop = false;
         }
       }else if(led_type == LED123_500MS_REPEATED ){//1
         switch (change_led_stat%3){
@@ -1850,8 +1882,9 @@ static void led_timer_alert_handler(void * p_context)
         }else{
           change_led_stat = INIT_CNT;
           led_all_clear();
+          led_alert_stop = false;
         }
-      }else if(led_type == LED123_500MS){
+      }else if(led_type == LED123_500MS){//
         switch (change_led_stat%3){
             case 0:
                 nrf_gpio_pin_set(APMATE_LED_1);
@@ -1873,16 +1906,50 @@ static void led_timer_alert_handler(void * p_context)
             default:
                 break;
         }
+        
+          if (( change_led_stat < alert_led_totalcnt) && (led_alert_stop == false)){
+              err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
+              APP_ERROR_CHECK(err_code);
+              change_led_stat++;
+          }else{
+              change_led_stat = INIT_CNT;
+              send_to_phoneapp_when_led_off();
+              led_all_clear();
+              led_alert_stop = false;
+          }
+      }else if(led_type == LED123_250MS){//LED123_250MS
+        switch (change_led_stat%3){
+            case 0:
+                nrf_gpio_pin_set(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+            
+                break;
+            case 1:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_set(APMATE_LED_2);
+                nrf_gpio_pin_clear(APMATE_LED_3);
+                break;
+            case 2:
+                nrf_gpio_pin_clear(APMATE_LED_1);
+                nrf_gpio_pin_clear(APMATE_LED_2);
+                nrf_gpio_pin_set(APMATE_LED_3);
+                break;
 
-        if ( change_led_stat < alert_led_totalcnt){
-            err_code = app_timer_start(m_led_timer_id,LED_INT_500MS,0);
-            APP_ERROR_CHECK(err_code);
-            change_led_stat++;
-        }else{
-            change_led_stat = INIT_CNT;
-            send_to_phoneapp_when_led_off();
-            led_all_clear();
+            default:
+                break;
         }
+        
+          if (( change_led_stat < alert_led_totalcnt) && (led_alert_stop == false)){
+              err_code = app_timer_start(m_led_timer_id,LED_INT_250MS,0);
+              APP_ERROR_CHECK(err_code);
+              change_led_stat++;
+          }else{
+              change_led_stat = INIT_CNT;
+              send_to_phoneapp_when_led_off();
+              led_all_clear();
+              led_alert_stop = false;
+          }
       }else if(led_type == LED123_1S){//2
         switch (change_led_stat%3){
             case 0:
@@ -2047,7 +2114,7 @@ static void battery_timeout_handler(void * p_context)
 #endif
 
 #if defined(TEMP_ONBOARD_ADC)
-static void temperature_timeout_handler(void * p_context)
+static void temperature_timeout_handler(void * p_context)//10sec timer
 {
 	uint32_t err_code;
 
@@ -2089,6 +2156,8 @@ static void temperature_timeout_handler(void * p_context)
 static void wakeup_nopaired_timeout_handler(void * p_context)
 {
   uint32_t err_code;
+
+  NRF_LOG_INFO("nopaired_timeout...timer stop...");
 
   err_code = app_timer_stop(m_wakeup_nopaired_timer_id);
   APP_ERROR_CHECK(err_code);
@@ -3126,7 +3195,7 @@ int main(void)
     do_test();
     do_send_batt_adc();
 #endif
-    
+   
     err_code = app_button_enable();
     APP_ERROR_CHECK(err_code);
 
