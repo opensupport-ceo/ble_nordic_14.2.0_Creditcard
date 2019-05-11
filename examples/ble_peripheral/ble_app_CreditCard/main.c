@@ -256,7 +256,7 @@ static uint8_t pressed_cnt, click_cnt, double_cnt = 0;
 #endif
 
 #ifndef USE_CARD_LED
-static uint32_t alert_cnt;
+static uint8_t alert_cnt = 0;
 static bool alert_on = false;
 static bool alert_btn_on = false;
 static bool btn_release = false;
@@ -2542,27 +2542,24 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             nrf_gpio_pin_set(APMATE_LED_1);
             nrf_gpio_pin_set(APMATE_LED_2);
 #if (1)
-            if(alert_on){
-                alert_cnt=100;
-                alert_btn_on=true;
-            }else{
-              #if defined(APP_BTN)
-                err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
-                APP_ERROR_CHECK(err_code);
-              #else
-                err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
-                APP_ERROR_CHECK(err_code);
-              #endif
 
-              #if defined(APP_BTN)
-                #if !defined(BTN_PWR_ON)
-                click_cnt++;
-                #endif
-              #else
-                click_cnt++;        
-                btn_release=false;
-              #endif
-            }
+		  #if defined(APP_BTN)
+			err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
+			APP_ERROR_CHECK(err_code);
+		  #else
+			err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
+			APP_ERROR_CHECK(err_code);
+		  #endif
+
+		  #if defined(APP_BTN)
+			#if !defined(BTN_PWR_ON)
+			click_cnt++;
+			#endif
+		  #else
+			click_cnt++;        
+			btn_release=false;
+		  #endif
+
 #else
             if(alert_on){
                 alert_cnt=100;
