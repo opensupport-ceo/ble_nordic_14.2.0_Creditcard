@@ -93,13 +93,12 @@
 
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
+#ifdef USE_ADC_TIMER
+#define SAMPLES 1
+#endif
 #if defined(BATT_POWEROFF)
 #define VOLT_MAX    0x32B //4.2V
-#ifdef DEV_TEMP
-#define CUTOFF_VAL  0x0 //temp
-#else
 #define CUTOFF_VAL  0x281 //3.3V
-#endif
 #endif
 
 /* Soft_device use #0 timer for another purpose,
@@ -108,6 +107,9 @@
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);
 
 static nrf_saadc_value_t adc_buf[2][SAMPLES_IN_BUFFER];
+#ifdef USE_ADC_TIMER
+static nrf_saadc_value_t batt_adc_buf[2][SAMPLES];
+#endif
 static uint8_t 		uart_send_data[20];
 static nrf_ppi_channel_t     m_ppi_channel;
 static uint32_t              m_adc_evt_counter;
@@ -187,6 +189,9 @@ APP_TIMER_DEF(m_app_btn_double_timer_id);
 #if defined(OLD_BATT_ADC)
 APP_TIMER_DEF(m_battery_timer_id);
 #endif
+#ifdef USE_ADC_TIMER
+APP_TIMER_DEF(m_batt_timer_id);
+#endif
 #if defined(BATT_POWEROFF)
 APP_TIMER_DEF(m_batt_adc_timer_id);
 #endif
@@ -200,7 +205,7 @@ APP_TIMER_DEF(m_wakeup_nopaired_timer_id);
 #endif
 APP_TIMER_DEF(m_sec_req_timer_id);                                                  /**< Security Request timer. */
 
-#define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(50)                     /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
+#define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(10)                     /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
 
 
 #if defined(BTN_PWR_ON)
@@ -226,11 +231,21 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #if defined(OLD_BATT_ADC)
 #define BATTERY_INTERVAL                                          APP_TIMER_TICKS(60000)
 #endif
+#ifdef USE_ADC_TIMER
+#ifdef DEV_TEMP
+#define BATT_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*5)
+#define BATT_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*10)
+#else
+#define BATT_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
+#define BATT_READ_START_INTERVAL                              APP_TIMER_TICKS(1000*60*60)
+#endif
+#endif
 #if defined(BATT_POWEROFF)
 #ifdef DEV_TEMP
-#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(60000)
+#define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
+#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*10)
 #else
-#define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(10000)
+#define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
 #define BATTERY_READ_START_INTERVAL                              APP_TIMER_TICKS(1000*60*60)
 #endif
 #endif
@@ -256,7 +271,7 @@ static uint8_t pressed_cnt, click_cnt, double_cnt = 0;
 #endif
 
 #ifndef USE_CARD_LED
-static uint8_t alert_cnt = 0;
+static uint32_t alert_cnt;
 static bool alert_on = false;
 static bool alert_btn_on = false;
 static bool btn_release = false;
@@ -491,9 +506,8 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
         }
         m_adc_evt_counter++;
 
-        //batt_adc = p_event->data.done.p_buffer[0];
         tmp_batt_adc = tmp_adc_sum/SAMPLES_IN_BUFFER;
-        
+
 #if defined(BATT_POWEROFF)
         if(check_batt_adc){//BATTERY_READ_START_INTERVAL
           NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
@@ -511,7 +525,13 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
               //nrf_gpio_pin_clear(APMATE_BAT_V);
               //nrf_gpio_pin_clear(APMATE_P_CTL);
               NRF_LOG_INFO("Batt adc under 3.3V...");
-        #if (1)//Jaehong
+        #ifdef DEV_TEMP
+              NRF_LOG_INFO("Batt ADC read-check stop...");
+              check_batt_adc = false;
+              nrf_gpio_pin_clear(APMATE_BAT_V);
+              err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL,0);
+              APP_ERROR_CHECK(err_code);
+        #else
               power_off();
         #endif
           }else{
@@ -523,7 +543,71 @@ void saadc_event_handler(nrf_drv_saadc_evt_t const * p_event)
           }
         }
 #endif
-      
+    }
+}
+#endif
+
+#ifdef USE_ADC_TIMER
+void saadc_batt_event_handler(nrf_drv_saadc_evt_t const * p_event)
+{
+    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
+    {
+	nrf_saadc_value_t tmp_batt_adc = 0;
+        nrf_saadc_value_t tmp_adc_sum = 0;
+        uint32_t          err_code;
+        //tmp_batt_adc = p_event->data.done.p_buffer[0];
+
+        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES);
+        APP_ERROR_CHECK(err_code);
+		
+        int i;
+        //NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
+
+        for (i = 0; i < SAMPLES; i++)
+        {
+            //NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
+            tmp_adc_sum += p_event->data.done.p_buffer[i];
+        }
+        m_adc_evt_counter++;
+
+        //batt_adc = p_event->data.done.p_buffer[0];
+        tmp_batt_adc = tmp_adc_sum/SAMPLES;
+
+#if defined(BATT_POWEROFF)
+        if(check_batt_adc){//BATTERY_READ_START_INTERVAL
+          NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
+          saved_batt_adc = tmp_batt_adc;
+        }
+#else
+        NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
+#endif
+
+#ifdef BATT_POWEROFF
+        if(check_batt_adc){
+          //send_to_phoneapp_batt(tmp_batt_adc);
+          check_batt_adc = false;
+          if(tmp_batt_adc <= CUTOFF_VAL){ // When under 3.3V.
+              //nrf_gpio_pin_clear(APMATE_BAT_V);
+              //nrf_gpio_pin_clear(APMATE_P_CTL);
+              NRF_LOG_INFO("Batt adc under 3.3V...");
+        #ifdef DEV_TEMP
+              NRF_LOG_INFO("Batt ADC read-check stop...");
+              check_batt_adc = false;
+              nrf_gpio_pin_clear(APMATE_BAT_V);
+              err_code = app_timer_start(m_batt_timer_id,BATTERY_READ_START_INTERVAL,0);
+              APP_ERROR_CHECK(err_code);
+        #else
+              power_off();
+        #endif
+          }else{
+            NRF_LOG_INFO("Batt ADC read-check stop...");
+            check_batt_adc = false;
+            nrf_gpio_pin_clear(APMATE_BAT_V);
+            err_code = app_timer_start(m_batt_timer_id,BATTERY_READ_START_INTERVAL,0);
+            APP_ERROR_CHECK(err_code);
+          }
+        }
+#endif
     }
 }
 #endif
@@ -725,23 +809,6 @@ void led_alert_start(void)
   err_code = app_timer_start(m_led_timer_id,LED_INTERVAL0,0);
   APP_ERROR_CHECK(err_code);
 }
-#else
-void led_alert_start(void)
-{
-    uint32_t err_code;
-    alert_cnt = 0;
-
-#if defined(USE_NEWLED)
-    err_code = app_timer_stop(m_led_idle_timer_id);
-    APP_ERROR_CHECK(err_code);
-#endif
-
-    if(!m_led_timer_f){
-        alert_on=true;	
-        err_code = app_timer_start(m_led_timer_id,LED_ALERT_INTERVAL,0);
-        APP_ERROR_CHECK(err_code);
-    }
-}
 #endif
 
 /**@brief Function for handling the data from the Nordic UART Service.
@@ -821,16 +888,12 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         #else    
             #ifdef USE_CARD_LED
               led1_led2_led3_onoff_500ms_repeatedly();
-            #else
-              led_alert_start();//LED start on and off.
             #endif
         #endif
               break;
             case 0xBB: //LED stop.
             #ifdef USE_CARD_LED
                 led_alert_stop = true;
-            #else
-              alert_cnt = 100;
             #endif
               break;
             case 0xAA: //OTA start.
@@ -1005,20 +1068,13 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 #if defined(BOARD_R11)
             //nrf_gpio_pin_set(APMATE_ID_CONTROL);
 #endif
-#if defined(WAKEUP_NOPAIRED)
-            paired_once = true;
-#endif
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
       #if defined(PEER_MNG)
             // Start Security Request timer.
             err_code = app_timer_start(m_sec_req_timer_id, SECURITY_REQUEST_DELAY, NULL);
             APP_ERROR_CHECK(err_code);
       #endif
-      #ifndef USE_CARD_LED
-            if(m_led_timer_f){
-               alert_cnt = 100;
-             }
-      #endif
+
 #if defined(OLD_BATT_ADC)
             err_code = app_timer_start(m_battery_timer_id,BATTERY_INTERVAL,0);
             APP_ERROR_CHECK(err_code);
@@ -1078,7 +1134,6 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = app_timer_stop(m_temperature_timer_id);
             APP_ERROR_CHECK(err_code);
 #endif
-            //led_alert_start();
             
             if(id_config == ID_ONOFF){
               id_config_set(ID_ONOFF);
@@ -1331,10 +1386,6 @@ static void log_init(void)
 
 #if defined(APP_BTN)
 static void app_button_init_click_cnt(void);
-#if !defined(BTN_PWR_ON)
-static uint32_t click_cnt, total_cnt = 0;
-#endif
-
 static void send_to_phoneapp_when_tracker_phone(void)
 {
   uint32_t err_code;
@@ -1545,28 +1596,6 @@ static void app_btn_timeout_handler(void * p_context) //3sec timer handler.
     }
 #endif
      return;
-
-#if !defined(BTN_PWR_ON)
-    //Do anything.
-    if(click_cnt<2){
-
-    }
-    if(total_cnt<30){
-        total_cnt++;
-    }else{
-     if(click_cnt>=2){
-      if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-          uart_send_data[0]=0x30+click_cnt/2;
-          uint16_t length = 1;
-          err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
-        }
-      }
-    }
-
-    click_cnt=0;
-    total_cnt=0;
-#endif
-
 }
 #endif
 
@@ -1606,10 +1635,18 @@ static void btn_power_on_timeout_handler(void * p_context)
       led1_led2_led3_onoff_500ms_1cnt_poweron();
 #endif
 
+
+
+#ifdef USE_ADC_TIMER
+      err_code = app_timer_start(m_batt_timer_id,BATT_READ_START_INTERVAL_FIRST,0);
+      APP_ERROR_CHECK(err_code);
+#else
 #if defined(BATT_POWEROFF)
       err_code = app_timer_start(m_batt_adc_timer_id,BATTERY_READ_START_INTERVAL_FIRST,0);
       APP_ERROR_CHECK(err_code);
 #endif
+#endif
+
 #if defined(WAKEUP_NOPAIRED)
     err_code = app_timer_start(m_wakeup_nopaired_timer_id, WAKEUP_NOPAIRED_INTERVAL,0);
     APP_ERROR_CHECK(err_code);
@@ -1619,60 +1656,6 @@ static void btn_power_on_timeout_handler(void * p_context)
       nrf_gpio_pin_clear(APMATE_LED_1);
 #endif
       power_off_instant();
-    }
-}
-#else
-static uint32_t hold_cnt, total_cnt, click_cnt, connec_cnt;
-static void btn_power_on_timeout_handler(void * p_context)
-{
-    uint32_t err_code;
-    UNUSED_PARAMETER(p_context);
-    if(click_cnt<2){
-        if(nrf_gpio_pin_read(APMATE_BTN_1)==0){
-                hold_cnt++;
-                if(hold_cnt==30){
-                        nrf_gpio_pin_clear(APMATE_LED_1);
-                        nrf_gpio_pin_clear(APMATE_LED_2);
-                        btn_release=true;
-                }
-        }else{
-                hold_cnt=0;
-                btn_release=true;
-                nrf_gpio_pin_clear(APMATE_LED_1);
-                nrf_gpio_pin_clear(APMATE_LED_2);
-        }
-    }
-    if(btn_release){
-        if(nrf_gpio_pin_read(APMATE_BTN_1)==0){
-           err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL,0);
-           APP_ERROR_CHECK(err_code);
-           return;
-        }else{
-
-         sleep_mode_enter();
-        }
-    }
-    if(total_cnt<30){
-        total_cnt++;
-        if(nrf_gpio_pin_read(APMATE_BTN_1)==1){
-                nrf_gpio_pin_clear(APMATE_LED_1);
-                nrf_gpio_pin_clear(APMATE_LED_2);
-        }
-        err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL,0);
-        APP_ERROR_CHECK(err_code);
-            
-    }else{
-        if(click_cnt>=2){
-                if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-                        uart_send_data[0]=0x30+click_cnt/2;
-                        uint16_t length = 1;
-                        err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
-                }
-        }
-        
-        click_cnt=0;
-        total_cnt=0;
-        hold_cnt=0;
     }
 }
 #endif//#if defined(BTN_PWR_ON)
@@ -2051,52 +2034,6 @@ static void led_timer_alert_handler(void * p_context)
       }
   }
 }
-#else
-static void led_timer_handler(void * p_context)
-{
-    UNUSED_PARAMETER(p_context);
-    uint32_t err_code;
-    if(alert_cnt==100){
-        alert_cnt=0;
-        alert_on=false;
-        nrf_gpio_pin_clear(APMATE_LED_1);
-        nrf_gpio_pin_clear(APMATE_LED_2);
-        nrf_gpio_pin_clear(APMATE_LED_3);
-       
-        if(alert_btn_on){
-                alert_btn_on=false;
-                uart_send_data[0]=0xEE;
-        }else{			
-                uart_send_data[0]=0xFF;
-        }
-        if(m_conn_handle != BLE_CONN_HANDLE_INVALID){
-            uint16_t length = 1;
-            err_code = ble_nus_string_send(&m_nus, uart_send_data, &length);
-        }
-        
-        return;
-    }
-
-    switch (alert_cnt++%10){
-        case 0:
-            nrf_gpio_pin_set(APMATE_LED_1);
-            nrf_gpio_pin_set(APMATE_LED_2);
-            nrf_gpio_pin_set(APMATE_LED_3);
-            
-            break;
-        case 2:
-            nrf_gpio_pin_clear(APMATE_LED_1);
-            nrf_gpio_pin_clear(APMATE_LED_2);
-            nrf_gpio_pin_clear(APMATE_LED_3);
-            break;
-
-        default:
-            break;
-    }
-    err_code = app_timer_start(m_led_timer_id,LED_INTERVAL1,0);
-    APP_ERROR_CHECK(err_code);
-
-}
 #endif
 
 #if defined(OLD_BATT_ADC)
@@ -2110,6 +2047,21 @@ static void battery_timeout_handler(void * p_context)
           APP_ERROR_CHECK(err_code);
         }
 	
+}
+#endif
+#ifdef USE_ADC_TIMER
+static void batt_timeout_handler(void * p_context)
+{
+  uint32_t err_code;
+  UNUSED_PARAMETER(p_context);
+
+  NRF_LOG_INFO("Batt ADC read-check starts...");
+  nrf_gpio_pin_set(APMATE_BAT_V);
+  nrf_delay_us(100);
+  check_batt_adc = true;
+
+  err_code = nrf_drv_saadc_sample();
+  APP_ERROR_CHECK(err_code);
 }
 #endif
 
@@ -2204,11 +2156,13 @@ void timer_init(void)
                             btn_power_on_timeout_handler);
     APP_ERROR_CHECK(err_code);
 
+#ifndef USE_ADC_TIMER
 #if defined(BATT_POWEROFF)
     err_code = app_timer_create(&m_batt_adc_timer_id,
                             APP_TIMER_MODE_SINGLE_SHOT,
                             batt_power_off_timeout_handler);
     APP_ERROR_CHECK(err_code);
+#endif
 #endif
     err_code = app_timer_create(&m_batt_adc_send_timer_id,
                                 APP_TIMER_MODE_SINGLE_SHOT,
@@ -2244,17 +2198,19 @@ void timer_init(void)
                             APP_TIMER_MODE_SINGLE_SHOT, 
                             led_timer_alert_handler);
     APP_ERROR_CHECK(err_code);
-#else
-    err_code = app_timer_create(&m_led_timer_id,
-                            APP_TIMER_MODE_SINGLE_SHOT, 
-                            led_timer_handler);
-    APP_ERROR_CHECK(err_code);
 #endif
 
 #if defined(OLD_BATT_ADC)
     err_code = app_timer_create(&m_battery_timer_id,
                             APP_TIMER_MODE_REPEATED,
                             battery_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+#endif
+
+#ifdef USE_ADC_TIMER
+    err_code = app_timer_create(&m_batt_timer_id,
+                            APP_TIMER_MODE_SINGLE_SHOT,
+                            batt_timeout_handler);
     APP_ERROR_CHECK(err_code);
 #endif
 
@@ -2460,19 +2416,6 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
             err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
             APP_ERROR_CHECK(err_code);
        #endif
-#else
-            if(alert_on){
-                alert_cnt=100;
-                alert_btn_on=true;
-            }else{
-              #if defined(APP_BTN)
-                err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
-                APP_ERROR_CHECK(err_code);
-              #else
-                err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
-                APP_ERROR_CHECK(err_code);
-              #endif
-            }
 #endif
            }
            break;
@@ -2528,54 +2471,6 @@ static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
     if((pressed_time != 0) && (released_time != 0) && (pressed_cnt == 1)){
       app_button_event_generator();
     }else{
-    }
-}
-#else
-static void app_button_event_handler(uint8_t pin_no, uint8_t button_action)
-{
-    ret_code_t err_code;
-
-    switch (pin_no)
-    {
-        case APMATE_BTN_1:
-            NRF_LOG_INFO("Button pressed...");
-            nrf_gpio_pin_set(APMATE_LED_1);
-            nrf_gpio_pin_set(APMATE_LED_2);
-#if (1)
-
-		  #if defined(APP_BTN)
-			err_code = app_timer_start(m_app_btn_timer_id,BTN1_INTERVAL2,0);
-			APP_ERROR_CHECK(err_code);
-		  #else
-			err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL2,0);
-			APP_ERROR_CHECK(err_code);
-		  #endif
-
-		  #if defined(APP_BTN)
-			#if !defined(BTN_PWR_ON)
-			click_cnt++;
-			#endif
-		  #else
-			click_cnt++;        
-			btn_release=false;
-		  #endif
-
-#else
-            if(alert_on){
-                alert_cnt=100;
-                alert_btn_on=true;
-            }else{
-                err_code = app_timer_start(m_btn_timer_id,BTN1_INTERVAL,0);
-                APP_ERROR_CHECK(err_code);
-                click_cnt++;
-                btn_release=false;
-            }
-#endif
-            break;
-
-        default:
-            APP_ERROR_HANDLER(pin_no);
-            break;
     }
 }
 #endif
@@ -2648,53 +2543,6 @@ static void power_on(void)
     power_off_instant();
   }
 }
-#else
-void boot_init(void)
-{
-	
-
-	//nrf_delay_ms(100);
-	uint32_t start_btn_cnt;
-	start_btn_cnt=0;
-	while(nrf_gpio_pin_read(APMATE_BTN_1)==0){
-		nrf_gpio_pin_set(APMATE_LED_1);
-		nrf_gpio_pin_set(APMATE_LED_2);
-		start_btn_cnt++;
-		nrf_delay_ms(100);
-		if(start_btn_cnt > 30){
-			start_btn_cnt++;
-			break;
-		}
-	}
-	nrf_gpio_pin_clear(APMATE_LED_1);
-	nrf_gpio_pin_clear(APMATE_LED_2);
-
-	if(start_btn_cnt > 30){
-              nrf_delay_ms(100);
-              nrf_gpio_pin_set(APMATE_LED_1);
-              nrf_gpio_pin_set(APMATE_LED_2);
-              nrf_delay_ms(300);
-              nrf_gpio_pin_clear(APMATE_LED_1);
-              nrf_gpio_pin_clear(APMATE_LED_2);
-              nrf_delay_ms(700);
-              nrf_gpio_pin_set(APMATE_LED_1);
-              nrf_gpio_pin_set(APMATE_LED_2);
-              nrf_delay_ms(300);
-              nrf_gpio_pin_clear(APMATE_LED_1);
-              nrf_gpio_pin_clear(APMATE_LED_2);
-              nrf_delay_ms(700);
-              nrf_gpio_pin_set(APMATE_LED_1);
-              nrf_gpio_pin_set(APMATE_LED_2);
-              nrf_delay_ms(300);
-              nrf_gpio_pin_clear(APMATE_LED_1);
-              nrf_gpio_pin_clear(APMATE_LED_2);
-	}else{
-                nrf_gpio_pin_clear(APMATE_BAT_V);
-             
-		sleep_mode_enter();
-	}
-	
-}
 #endif
 
 #if defined(BATT_ADC)
@@ -2716,7 +2564,11 @@ void saadc_sampling_event_init(void)
     APP_ERROR_CHECK(err_code);
 
     /* setup m_timer for compare event every 400ms */
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+#ifdef DEV_TEMP
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 1000*1);
+#else
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 1000*10);
+#endif
     nrf_drv_timer_extended_compare(&m_timer,
                                    NRF_TIMER_CC_CHANNEL0,
                                    ticks,
@@ -2766,9 +2618,6 @@ static void saadc_init(void)
 
     err_code = nrf_drv_saadc_buffer_convert(adc_buf[1], SAMPLES_IN_BUFFER);
     APP_ERROR_CHECK(err_code);
-
-  
-
 }
 
 static void adc_configure(void)
@@ -2778,6 +2627,25 @@ static void adc_configure(void)
     saadc_sampling_event_enable();
 }
 #endif //#if defined(BATT_ADC)
+
+#ifdef USE_ADC_TIMER
+static void batt_adc_configure(void)
+{
+      ret_code_t err_code = nrf_drv_saadc_init(NULL, saadc_batt_event_handler);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_saadc_channel_config_t config =
+        NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN3);
+    err_code = nrf_drv_saadc_channel_init(0, &config);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(batt_adc_buf[0], SAMPLES);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_saadc_buffer_convert(batt_adc_buf[1], SAMPLES);
+    APP_ERROR_CHECK(err_code);
+}
+#endif
 
 /**@brief Function for placing the application in low power state while waiting for events.
  */
@@ -2865,6 +2733,17 @@ void uart_event_handle(app_uart_evt_t * p_event)
             APP_ERROR_HANDLER(p_event->data.error_code);
             break;
 
+        case APP_UART_TX_EMPTY:
+            //Data has been successfully transmitted on the UART
+            break;
+        case APP_UART_DATA:	
+            //Data is ready on the UART					
+            break;
+#if (0)
+        case APP_UART_DATA_READY:
+            //Data is ready on the UART FIFO		
+            break;
+#endif
         default:
             break;
     }
@@ -2955,6 +2834,9 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                              p_evt->conn_handle,
                              p_evt->params.conn_sec_succeeded.procedure);
                 paired_connection = 1;
+        #if defined(WAKEUP_NOPAIRED)
+                paired_once = true;
+        #endif
                 if(id_config == ID_ONOFF){
                   id_config_set(ID_ONOFF);
                 }
@@ -3136,11 +3018,7 @@ int main(void)
 {
     uint32_t err_code;
     int32_t temperature = 0;
-#ifdef DEV_TEMP
-    bool     erase_bonds = true;
-#else
     bool     erase_bonds = false;
-#endif
 
     // Initialize.
     gpio_init();
@@ -3164,8 +3042,12 @@ int main(void)
 
     app_buttons_init();
 
+#ifdef USE_ADC_TIMER
+    batt_adc_configure();
+#else
 #if defined(BATT_ADC)
     adc_configure();
+#endif
 #endif
 
 #if defined(TEMP_ONBOARD_ADC)
@@ -3175,8 +3057,6 @@ int main(void)
     ble_stack_init();
 #if defined(BTN_PWR_ON)
     power_on();
-#else
-    boot_init();//power up
 #endif
 
     gap_params_init();

@@ -86,13 +86,6 @@
       <file file_name="../../../../../../components/libraries/bsp/bsp_btn_ble.c" />
       <file file_name="../../../../../../components/libraries/bsp/bsp_nfc.c" />
     </folder>
-    <folder Name="Application">
-      <file file_name="../../../main.c">
-        <configuration Name="Debug" c_user_include_directories="." />
-      </file>
-      <file file_name="../config/sdk_config.h" />
-      <file file_name="../config/custom_feature.h" />
-    </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../../../../../../external/segger_rtt/SEGGER_RTT.c" />
       <file file_name="../../../../../../external/segger_rtt/SEGGER_RTT_Syscalls_SES.c" />
@@ -155,6 +148,13 @@
           Name="Debug"
           c_user_include_directories="../../../../../../components/libraries/bootloader/dfu;../../../../../../components/libraries/svc" />
       </file>
+    </folder>
+    <folder Name="Application">
+      <file file_name="../../../main.c">
+        <configuration Name="Debug" c_user_include_directories="." />
+      </file>
+      <file file_name="../config/sdk_config.h" />
+      <file file_name="../config/custom_feature.h" />
     </folder>
   </project>
   <configuration

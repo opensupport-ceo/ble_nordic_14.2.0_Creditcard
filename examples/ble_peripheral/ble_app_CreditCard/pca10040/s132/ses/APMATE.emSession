@@ -10,9 +10,9 @@
   <BreakpointListItem trigger="" line="85" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/libraries/util/app_error_weak.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="93" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/libraries/util/app_error_weak.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="54" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="1552" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="1622" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="1689" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="1718" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="1790" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="3" filename="../../../main.c" useHWbreakpoint="false"/>
   <BreakpointListItem trigger="" line="608" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="4" filename="../../../../ble_app_R11_tracker-2019-05-07-5th/main.c" useHWbreakpoint="false"/>
   <Exceptions set="MemManage;UsageFault_Coprocessor;UsageFault_CheckingError;UsageFault_StateError;BusFault;ExceptionEntryReturnFault;HardFault"/>
  </Breakpoints>
@@ -76,9 +76,9 @@
    <Watchpoint expression="id" name="id" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
    <Watchpoint expression="pc" name="pc" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
    <Watchpoint expression="info" name="info" radix="16" linenumber="56" filename="../../../../../../components/libraries/util/app_error_weak.c"/>
-   <Watchpoint expression="err_code" name="err_code" radix="16" linenumber="1249" filename="../../../main.c"/>
-   <Watchpoint expression="tmp_batt_adc" name="tmp_batt_adc" radix="16" linenumber="382" filename="../../../main.c"/>
-   <Watchpoint expression="led_type" name="led_type" radix="-1" linenumber="1764" filename="../../../main.c"/>
+   <Watchpoint expression="err_code" name="err_code" radix="16" linenumber="1319" filename="../../../main.c"/>
+   <Watchpoint expression="tmp_batt_adc" name="tmp_batt_adc" radix="16" linenumber="387" filename="../../../main.c"/>
+   <Watchpoint expression="led_type" name="led_type" radix="-1" linenumber="1836" filename="../../../main.c"/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -91,17 +91,25 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="47" y="2325" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="2316" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="97" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="83" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="793" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../ble_app_R11_tracker-2019-05-07-7th/main.c" selected="0" top="775" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="19" y="3061" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="3061" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="56" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="53" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="377" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.c" selected="0" top="330" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="393" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu_bonded.c" selected="0" top="361" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="323" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="314" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="5667" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/sdk_config.h" selected="0" top="5660" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="521" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/softdevice/s132/headers/nrf_soc.h" selected="0" top="507" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="74" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/ble/ble_services/ble_dfu/ble_dfu.h" selected="0" top="59" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="312" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/uart/nrf_drv_uart.c" selected="0" top="293" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="1671" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/toolchain/cmsis/include/core_cm4.h" selected="0" top="1657" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="223" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/boards/pca10040.h" selected="0" top="210" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="108" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/timer/nrf_drv_timer.h" selected="0" top="94" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="186" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/button/app_button.c" selected="0" top="168" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="112" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/gpiote/nrf_drv_gpiote.c" selected="0" top="99" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="232" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/device/nrf52832_peripherals.h" selected="0" top="219" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="61" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/hal/nrf_gpio.h" selected="0" top="47" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="129" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/device/nrf51_to_nrf52.h" selected="0" top="120" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="109" useTextEdit="1" useBinaryEdit="0" left="0" path="../config/custom_feature.h" selected="0" top="102" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="275" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/drivers_nrf/saadc/nrf_drv_saadc.h" selected="0" top="254" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="982" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/timer/app_timer.c" selected="0" top="971" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="D:/_____nRF5_SDK_14.2.0_APMATE/components/ble/common/ble_advdata.c&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/ble/peer_manager/peer_manager.c&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/toolchain/ses/ses_nrf52_Vectors.s&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/toolchain/ses/ses_nRF_Startup.s&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/examples/ble_peripheral/ble_app_R11_tracker-2019-05-06/main.c&#xa;" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3711"/>
+ <ARMCrossStudioWindow activeProject="ble_APMATE" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" sessionSettings="" debugSearchFileMap="D:/_____nRF5_SDK_14.2.0_APMATE/components/ble/common/ble_advdata.c&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/ble/peer_manager/peer_manager.c&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/toolchain/ses/ses_nrf52_Vectors.s&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/components/toolchain/ses/ses_nRF_Startup.s&#xa;&#xa;D:/_____nRF5_SDK_14.2.0_APMATE/examples/ble_peripheral/ble_app_R11_tracker-2019-05-06/main.c&#xa;" fileDialogInitialDirectory="" debugSearchPath="" autoConnectCapabilities="3199"/>
 </session>

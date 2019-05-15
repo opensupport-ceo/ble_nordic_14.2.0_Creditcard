@@ -49,6 +49,11 @@
 //#undef BATT_POWEROFF
 #endif
 
+/* Don't use ppi, timer when checking batt adc,
+** Just use saadc api.
+*/
+#define USE_ADC_TIMER
+
 #if defined(BATT_ADC)
 /* UARTE0 over-shared with SAADC for reading battery ADC 
 ** So, shoud be disabled currently.
