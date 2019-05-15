@@ -91,6 +91,7 @@
 #include "fds.h"
 #include "bsp.h" //bonds
 
+//#define DEV_TEMP
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
 #ifdef USE_ADC_TIMER
@@ -233,8 +234,8 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #endif
 #ifdef USE_ADC_TIMER
 #ifdef DEV_TEMP
-#define BATT_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*5)
-#define BATT_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*10)
+#define BATT_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
+#define BATT_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*60*60)
 #else
 #define BATT_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
 #define BATT_READ_START_INTERVAL                              APP_TIMER_TICKS(1000*60*60)
@@ -574,7 +575,7 @@ void saadc_batt_event_handler(nrf_drv_saadc_evt_t const * p_event)
         tmp_batt_adc = tmp_adc_sum/SAMPLES;
 
 #if defined(BATT_POWEROFF)
-        if(check_batt_adc){//BATTERY_READ_START_INTERVAL
+        if(check_batt_adc){//BATT_READ_START_INTERVAL
           NRF_LOG_INFO("Batt ADC: 0x%X(%d)", tmp_batt_adc, tmp_batt_adc);
           saved_batt_adc = tmp_batt_adc;
         }
@@ -594,7 +595,7 @@ void saadc_batt_event_handler(nrf_drv_saadc_evt_t const * p_event)
               NRF_LOG_INFO("Batt ADC read-check stop...");
               check_batt_adc = false;
               nrf_gpio_pin_clear(APMATE_BAT_V);
-              err_code = app_timer_start(m_batt_timer_id,BATTERY_READ_START_INTERVAL,0);
+              err_code = app_timer_start(m_batt_timer_id,BATT_READ_START_INTERVAL,0);
               APP_ERROR_CHECK(err_code);
         #else
               power_off();
@@ -603,7 +604,7 @@ void saadc_batt_event_handler(nrf_drv_saadc_evt_t const * p_event)
             NRF_LOG_INFO("Batt ADC read-check stop...");
             check_batt_adc = false;
             nrf_gpio_pin_clear(APMATE_BAT_V);
-            err_code = app_timer_start(m_batt_timer_id,BATTERY_READ_START_INTERVAL,0);
+            err_code = app_timer_start(m_batt_timer_id,BATT_READ_START_INTERVAL,0);
             APP_ERROR_CHECK(err_code);
           }
         }
