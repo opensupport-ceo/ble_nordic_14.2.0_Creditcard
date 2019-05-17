@@ -91,7 +91,7 @@
 #include "fds.h"
 #include "bsp.h" //bonds
 
-//#define DEV_TEMP
+#define DEV_TEMP
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
 #ifdef USE_ADC_TIMER
@@ -244,7 +244,7 @@ APP_TIMER_DEF(m_sec_req_timer_id);                                              
 #if defined(BATT_POWEROFF)
 #ifdef DEV_TEMP
 #define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
-#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*10)
+#define BATTERY_READ_START_INTERVAL                               APP_TIMER_TICKS(1000*60*60)
 #else
 #define BATTERY_READ_START_INTERVAL_FIRST                        APP_TIMER_TICKS(1000*10)
 #define BATTERY_READ_START_INTERVAL                              APP_TIMER_TICKS(1000*60*60)
@@ -339,9 +339,7 @@ static void sleep_mode_enter(void)
 {
     uint32_t err_code;
 
-#if defined(OLD_SENARIO)
     nrf_gpio_cfg_sense_input(APMATE_BTN_1,NRF_GPIO_PIN_PULLUP,NRF_GPIO_PIN_SENSE_LOW);
-#endif
 
 #if (0)
     uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
