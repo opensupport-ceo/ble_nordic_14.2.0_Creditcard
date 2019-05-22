@@ -91,7 +91,7 @@
 #include "fds.h"
 #include "bsp.h" //bonds
 
-#define DEV_TEMP
+//#define DEV_TEMP
 #if defined(BATT_ADC)
 #define SAMPLES_IN_BUFFER 5
 #ifdef USE_ADC_TIMER
